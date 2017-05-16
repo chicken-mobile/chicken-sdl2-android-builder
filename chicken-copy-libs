@@ -1,0 +1,56 @@
+#!/bin/sh
+#| -*- scheme -*- |#
+#|
+exec csi -s "$0" "$@"
+|#
+
+;;; Helper util to move all eggs and unit libraries to an Android
+;;; project's libs folder.
+
+
+;; usage: ./move-libs <source-dir> <destination-dir>
+;; e.g. ./move-libs jni/chicken/target/$(PACKAGE_NAME)/lib libs/armeabi/
+(use files posix srfi-13)
+
+(define source-dir "/data/chicken/lib") (assert (directory? source-dir))
+
+;; (define binary-version (##sys#fudge 42))
+
+(define (maybe-copy! src dst)
+  (if (file-exists? dst)
+      (print "skipping existing file " dst)
+      (begin (print "copying " dst " => " dst)
+             (file-copy src dst))))
+
+;; (ensure-prefix "/tmp/a.so" dest-dir: "/foo")
+(define (ensure-prefix pathname #!key (prefix "lib") (dest-dir #f))
+  (receive (dir filename ext) (decompose-pathname pathname)
+    (let* ((prefix (if (string-prefix? "lib" filename) "" "lib"))
+           (filename0 (string-append prefix (pathname-file filename))))
+      (make-pathname (or dest-dir dir) filename0 ext))))
+
+(define (libraries)
+  (find-files source-dir
+              test: (lambda (pn) (and (string-suffix? ".so" pn)
+                                 (not (directory? pn))))))
+
+;; (copy-libs "~/android-project/libs/armeabi/")
+(define (copy-libs dest-dir)
+  (for-each (lambda (lib.so)
+              (maybe-copy! lib.so (ensure-prefix lib.so dest-dir: dest-dir)))
+            (libraries)))
+
+(define cla command-line-arguments)
+
+(when (member "-h" (cla))
+    (print (print "usage: " (car (argv)) " <destination>")
+           (print "      eg. " (car (argv)) " ~/projects/android-test/libs/armeabi")
+           (exit 0)))
+
+(define destination
+  (if (null? (cla))
+      "/data/prj/libs/armeabi"
+      (car (cla))))
+
+(create-directory destination #t)
+(copy-libs destination)

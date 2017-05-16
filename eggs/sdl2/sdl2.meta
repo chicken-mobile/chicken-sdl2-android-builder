@@ -1,0 +1,9 @@
+;;;; -*- Scheme -*-
+
+((egg "sdl2.egg")
+ (synopsis "Bindings to Simple DirectMedia Layer (SDL) 2")
+ (author "John Croisant")
+ (category graphics)
+ (license "BSD")
+ (test-depends test)
+ (foreign-depends "SDL >= 2.0.0"))
