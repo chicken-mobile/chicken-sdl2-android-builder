@@ -12,7 +12,16 @@ FROM ubuntu:16.04
 # Update, upgrade and install packages
 RUN \
     apt-get update && \
-    apt-get -y install curl unzip python-software-properties software-properties-common openjdk-8-jdk
+    apt-get -y install \
+            curl unzip \
+            python-software-properties software-properties-common \
+            openjdk-8-jdk \
+            build-essential \
+            make ant \
+            libxext-dev \
+            mg less
+#  libxext-dev needed by SDL2 for host
+
 
 ##################### we can use openjdk-7-jdk from above
 # # Install Oracle Java JDK
@@ -68,7 +77,6 @@ ENV PATH $PATH:$ANDROID_HOME/tools:$ANDROID_NDK_HOME/platform-tools:$ANDROID_NDK
 
 
 # klm added this:
-RUN apt-get -y install make ant
 
 # building with android-12 i get:
 # adb -d install com.daw7872-debug.apk 
@@ -79,16 +87,6 @@ RUN apt-get -y install make ant
 #RUN echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter android-12 --no-ui --force -a
 
 RUN curl "https://www.libsdl.org/release/SDL2-2.0.5.tar.gz" | tar zxv -C /opt && ln -s /opt/SDL2-2.0.5 /opt/SDL2
-
-#RUN echo '/opt/SDL2/test/testgles.c' | /opt/SDL2/build-scripts/androidbuild.sh com.daw7872
-
-# TODO: remove this!
-RUN mkdir -p /data/prj && cp -r /opt/SDL2/android-project/* /data/prj/ && \
-    mkdir -p /data/prj/jni/SDL && \
-    ln -s /opt/SDL2/src        /data/prj/jni/SDL && \
-    ln -s /opt/SDL2/include    /data/prj/jni/SDL && \
-    cp -r /opt/SDL2/Android.mk /data/prj/jni/SDL
-
 
 # TODO uncomment this
 # # Flatten the image
@@ -113,17 +111,10 @@ RUN mkdir -p /data/app
 # Define default command
 #CMD ["bash"]
 
-COPY ./chicken-4.12.0.tar.gz /opt
+RUN curl https://code.call-cc.org/releases/4.12.0/chicken-4.12.0.tar.gz \
+     | tar xzv -C /opt && \
+    ln -s /opt/chicken-4.12.0 /opt/chicken
 
-# TODO: curl https://code.call-cc.org/releases/4.12.0/chicken-4.12.0.tar.gz \
-# | tar xv -C /opt
-
-RUN tar xfv /opt/chicken-4.12.0.tar.gz -C /opt && \
-    ln -s /opt/chicken-4.12.0 /opt/chicken && \
-    rm /opt/chicken-4.12.0.tar.gz
-
-# TODO: move to top
-RUN apt-get -y install build-essential
 RUN ln -s /usr/local/android-ndk-r10e /opt/ndk
 
 ENV ANDROID_PLATFORM_ID=18
@@ -183,11 +174,6 @@ RUN chicken-install nrepl ssax sxpath
 # print-sdl2-version which it uses to detect stuff. this is used on
 # the host. the good news is that the same SDL2 version is running on
 # the host and the target :).
-# building SDL2 with ./configure needs this:
-# TODO: move to top
-RUN apt-get -y install libxext-dev
-
-RUN apt-get -y install mg less
 
 # TODO: configure a smaller version. disable tests and stuff.
 # build SDL2 without touching the original sources, so ndk-build's
