@@ -18,7 +18,6 @@ jni/entry/entry.c:
 
 LOCAL_PATH := $(THIS_PATH) # all paths now relative to prj/jni/src/
 include $(CLEAR_VARS)
-$(warn path path $(LOCAL_PATH))
 LOCAL_MODULE := entry
 LOCAL_C_INCLUDES := ../SDL/include
 LOCAL_SRC_FILES := ../SDL/src/main/android/SDL_android_main.c entry.c

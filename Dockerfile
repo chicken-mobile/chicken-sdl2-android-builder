@@ -75,9 +75,6 @@ RUN \
 ENV ANDROID_HOME=/usr/local/android-sdk-linux ANDROID_NDK_HOME=/usr/local/android-ndk-r10e  GRADLE_HOME=/usr/local/gradle-2.5
 ENV PATH $PATH:$ANDROID_HOME/tools:$ANDROID_NDK_HOME/platform-tools:$ANDROID_NDK_HOME:$GRADLE_HOME/bin
 
-
-# klm added this:
-
 # building with android-12 i get:
 # adb -d install com.daw7872-debug.apk 
 # [100%] /data/local/tmp/com.daw7872-debug.apk
@@ -212,7 +209,7 @@ RUN mkdir -p /data/prj-build && cp -rT /data/template/ /data/prj-build && cd /da
 COPY eggs/sdl2 /eggs/sdl2
 RUN cd /eggs/sdl2 && env SDL2_FLAGS="-I/data/prj-build/jni/SDL/include -L/data/prj-build/obj/local/armeabi/ -lSDL2" chicken-install
 
-
+# TODO: move this up with chicken-copy-libs
 COPY chicken-find-package /usr/bin
 
 # TODO: provide a command to dump the android template for easily
