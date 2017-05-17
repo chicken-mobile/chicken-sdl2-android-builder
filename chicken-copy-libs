@@ -49,7 +49,7 @@ exec csi -s "$0" "$@"
 
 (define destination
   (if (null? (cla))
-      "/data/prj/libs/armeabi"
+      "libs/armeabi"
       (car (cla))))
 
 (create-directory destination #t)

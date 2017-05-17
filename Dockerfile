@@ -82,6 +82,7 @@ RUN curl "https://www.libsdl.org/release/SDL2-2.0.5.tar.gz" | tar zxv -C /opt &&
 
 #RUN echo '/opt/SDL2/test/testgles.c' | /opt/SDL2/build-scripts/androidbuild.sh com.daw7872
 
+# TODO: remove this!
 RUN mkdir -p /data/prj && cp -r /opt/SDL2/android-project/* /data/prj/ && \
     mkdir -p /data/prj/jni/SDL && \
     ln -s /opt/SDL2/src        /data/prj/jni/SDL && \
@@ -195,20 +196,6 @@ RUN cp -r /opt/SDL2-2.0.5 /tmp/SDL2-host && \
     cd / && \
     rm -r /tmp/SDL2-host
 
-# Application.mk is special. Chaning it will trigger rebuild of SDL2
-# when running `ndk-build SDL2`. So it's really nice to add this early
-# like this, that way, users don't have to wait for libSDL2.so for
-# android gets built every time.
-COPY android/jni/Application.mk /data/prj/jni/
-
-# build our target SDL2 library (./libs/armeabi/SDL2.so)
-# this target library is needed by the sdl2 egg
-RUN cd /data/prj && ndk-build SDL2
-
-COPY eggs/sdl2 /eggs/sdl2
-RUN cd /eggs/sdl2 && chicken-install
-
-ENV SDL2_FLAGS="-I/data/prj/jni/SDL/include -L/data/prj/obj/local/armeabi/ -lSDL2"
 
 # these takes forever (host, then target):
 COPY eggs/miscmacros /eggs/miscmacros
@@ -220,13 +207,18 @@ RUN cd /eggs/nrepl && chicken-install
 # COPY eggs/opengl-glew /eggs/opengl-glew
 # RUN cd /eggs/opengl-glew && chicken-install
 
+WORKDIR /data/app
 
-WORKDIR /data/prj
-RUN rm -r /data/prj/jni/src
+COPY build.sh chicken-copy-libs /usr/bin/
 
-COPY ./chicken-copy-libs /usr/bin/
-COPY android/ /data/prj/
+COPY android/ /data/template
 
-# overwrite src from android-project
-COPY src /data/prj/jni/src
+
+# # build our target SDL2 library (./libs/armeabi/SDL2.so)
+# # this target library is needed by the sdl2 egg
+RUN mkdir -p /data/prj-build && cp -rT /data/template/ /data/prj-build && cd /data/prj-build && ndk-build SDL2
+
+COPY eggs/sdl2 /eggs/sdl2
+RUN cd /eggs/sdl2 && env SDL2_FLAGS="-I/data/prj-build/jni/SDL/include -L/data/prj-build/obj/local/armeabi/ -lSDL2" chicken-install
+
 
