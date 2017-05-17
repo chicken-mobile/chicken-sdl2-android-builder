@@ -115,14 +115,16 @@ RUN mkdir -p /data/app
 
 COPY ./chicken-4.12.0.tar.gz /opt
 
+# TODO: curl https://code.call-cc.org/releases/4.12.0/chicken-4.12.0.tar.gz \
+# | tar xv -C /opt
+
 RUN tar xfv /opt/chicken-4.12.0.tar.gz -C /opt && \
     ln -s /opt/chicken-4.12.0 /opt/chicken && \
     rm /opt/chicken-4.12.0.tar.gz
 
+# TODO: move to top
 RUN apt-get -y install build-essential
 RUN ln -s /usr/local/android-ndk-r10e /opt/ndk
-
-# TODO: move here RUN apt-get -y install libxext-dev
 
 ENV ANDROID_PLATFORM_ID=18
 ENV ANDROID_PLATFORM=android-${ANDROID_PLATFORM_ID}
@@ -182,6 +184,7 @@ RUN chicken-install nrepl ssax sxpath
 # the host. the good news is that the same SDL2 version is running on
 # the host and the target :).
 # building SDL2 with ./configure needs this:
+# TODO: move to top
 RUN apt-get -y install libxext-dev
 
 RUN apt-get -y install mg less
@@ -214,11 +217,17 @@ COPY build.sh chicken-copy-libs /usr/bin/
 COPY android/ /data/template
 
 
-# # build our target SDL2 library (./libs/armeabi/SDL2.so)
-# # this target library is needed by the sdl2 egg
+# build our target SDL2 library (./libs/armeabi/SDL2.so). this target
+# library is needed by the sdl2 egg. the reason it's important to
+# build our android-version of SDL2 is that we need it to build the
+# sdl2 egg below.
 RUN mkdir -p /data/prj-build && cp -rT /data/template/ /data/prj-build && cd /data/prj-build && ndk-build SDL2
 
 COPY eggs/sdl2 /eggs/sdl2
 RUN cd /eggs/sdl2 && env SDL2_FLAGS="-I/data/prj-build/jni/SDL/include -L/data/prj-build/obj/local/armeabi/ -lSDL2" chicken-install
 
 
+COPY chicken-find-package /usr/bin
+
+# TODO: provide a command to dump the android template for easily
+# creating new projects.
