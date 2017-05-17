@@ -22,11 +22,11 @@ exec csi -s "$0" "$@"
       (begin (print "copying " dst " => " dst)
              (file-copy src dst))))
 
-;; (ensure-prefix "/tmp/a.so" dest-dir: "/foo")
+;; (ensure-prefix "/tmp/a.import.so" dest-dir: "/foo")
 (define (ensure-prefix pathname #!key (prefix "lib") (dest-dir #f))
   (receive (dir filename ext) (decompose-pathname pathname)
     (let* ((prefix (if (string-prefix? "lib" filename) "" "lib"))
-           (filename0 (string-append prefix (pathname-file filename))))
+           (filename0 (string-append prefix filename)))
       (make-pathname (or dest-dir dir) filename0 ext))))
 
 (define (libraries)
