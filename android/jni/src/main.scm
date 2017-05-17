@@ -7,6 +7,14 @@
 (foreign-declare "#include <SDL.h>")
 (foreign-declare "#include \"stdio2log.c\"")
 
+(use srfi-18)
+(current-exception-handler
+ (lambda (e)
+   (print "app crashed:")
+   (pp (condition->list e))
+   (thread-sleep! 1)
+   (exit)))
+
 ;; ==================== bootstrapping ====================
 ;; hack of the year!
 ;;
@@ -37,16 +45,23 @@
 ;; etc end up on stderr usually.
 ((foreign-lambda void start_logger))
 
+(define package-id
+ (let-syntax ((get-package-id
+               (ir-macro-transformer
+                (lambda (x r t)
+                  (with-input-from-pipe "chicken-find-package" read-line)))))
+   (lambda () (get-package-id))))
+
+;; TODO: more possible locations for this? we could check at runtime
+;; for existing directory.
+(repository-path (string-append "/data/data/" (package-id) "/lib"))
+(print "(repository-path) = " (repository-path))
+
 ;; ==================== your environment sould be ready here  ====================
 
+;; project-root is also included in include-path
 ;; replace with your favorite program here
-;;(include "base.scm")
-(use srfi-18)
-(thread-sleep! 1)
-
-(print "setting (repository-path) to " (repository-path "/data/data/org.libsdl.app/lib"))
-
-(use nrepl)
+(include "main.scm")
 
 
 ;; it may be good practice to have your game start a srfi-18 thread,
@@ -63,6 +78,5 @@
 ;; add a network REPL and loop forever
 (nrepl 1234)
 
-
 ;; if we reach here, the app will exit
-(let loop () (thread-sleep! 1) (print "OBS") (loop))
+
