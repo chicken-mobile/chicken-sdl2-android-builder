@@ -22,18 +22,6 @@ RUN \
             mg less
 #  libxext-dev needed by SDL2 for host
 
-
-##################### we can use openjdk-7-jdk from above
-# # Install Oracle Java JDK
-# # https://www.digitalocean.com/community/tutorials/how-to-install-java-on-ubuntu-with-apt-get
-# # https://github.com/dockerfile/java/blob/master/oracle-java7/Dockerfile
-# RUN \
-#     echo oracle-java7-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
-#     add-apt-repository -y ppa:webupd8team/java && \
-#     apt-get update && \
-#     apt-get install -y oracle-java7-installer
-####################
-
 # Install Android SDK
 # https://developer.android.com/sdk/index.html#Other
 RUN \
@@ -51,37 +39,21 @@ RUN \
     curl -L -O http://dl.google.com/android/ndk/android-ndk-r10e-linux-x86_64.bin && \
     chmod a+x android-ndk-r10e-linux-x86_64.bin && \
     ./android-ndk-r10e-linux-x86_64.bin && \
+    ln -s /usr/local/android-ndk-r10e /opt/ndk && \
     rm -f android-ndk-r10e-linux-x86_64.bin
 
-
-# Install Gradle
-RUN cd /usr/local && \
-    curl -L https://services.gradle.org/distributions/gradle-2.5-bin.zip -o gradle-2.5-bin.zip && \
-    unzip gradle-2.5-bin.zip
-
-
 # Update & Install Android Tools
-# Cloud message, billing, licensing, play services, admob, analytics
 RUN \
     echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter tools --no-ui --force -a && \
     echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter platform-tools --no-ui --force -a && \
     echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter android-19 --no-ui --force -a && \
-    echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter android-21 --no-ui --force -a && \
-    echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter android-22 --no-ui --force -a && \
-    echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter extra --no-ui --force -a &&\
     echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter build-tools-26.0.0-preview --no-ui --force -a
 
 # Set PATH
-ENV ANDROID_HOME=/usr/local/android-sdk-linux ANDROID_NDK_HOME=/usr/local/android-ndk-r10e  GRADLE_HOME=/usr/local/gradle-2.5
-ENV PATH $PATH:$ANDROID_HOME/tools:$ANDROID_NDK_HOME/platform-tools:$ANDROID_NDK_HOME:$GRADLE_HOME/bin
+ENV ANDROID_HOME=/usr/local/android-sdk-linux \
+    ANDROID_NDK_HOME=/usr/local/android-ndk-r10e
 
-# building with android-12 i get:
-# adb -d install com.daw7872-debug.apk 
-# [100%] /data/local/tmp/com.daw7872-debug.apk
-# 	pkg: /data/local/tmp/com.daw7872-debug.apk
-# Failure [INSTALL_FAILED_DEXOPT]
-#  so nevermind this:
-#RUN echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter android-12 --no-ui --force -a
+ENV PATH $PATH:$ANDROID_HOME/tools:$ANDROID_NDK_HOME/platform-tools:$ANDROID_NDK_HOME:$GRADLE_HOME/bin
 
 RUN curl "https://www.libsdl.org/release/SDL2-2.0.5.tar.gz" | tar zxv -C /opt && ln -s /opt/SDL2-2.0.5 /opt/SDL2
 
@@ -99,20 +71,11 @@ RUN curl "https://www.libsdl.org/release/SDL2-2.0.5.tar.gz" | tar zxv -C /opt &&
 
 # Define working directory.
 RUN mkdir -p /data/app
-#WORKDIR /data/app
-
-# Define volume: your local app code directory can be mounted here
-# Mount with: -v /your/local/directory:/data/app
-#VOLUME ["/data/app"]
-
-# Define default command
-#CMD ["bash"]
+WORKDIR /data/app
 
 RUN curl https://code.call-cc.org/releases/4.12.0/chicken-4.12.0.tar.gz \
      | tar xzv -C /opt && \
     ln -s /opt/chicken-4.12.0 /opt/chicken
-
-RUN ln -s /usr/local/android-ndk-r10e /opt/ndk
 
 ENV ANDROID_PLATFORM_ID=18
 ENV ANDROID_PLATFORM=android-${ANDROID_PLATFORM_ID}
@@ -164,7 +127,8 @@ RUN cd /opt/chicken && make \
     EGGDIR=/lib \
     confclean clean all install
 
-RUN chicken-install nrepl ssax sxpath
+# needed by chicken-find-package
+RUN chicken-install ssax sxpath
 
 
 # we need SDL2 on the host too. the sdl2 egg uses this
@@ -182,12 +146,7 @@ RUN cp -r /opt/SDL2-2.0.5 /tmp/SDL2-host && \
     cd / && \
     rm -r /tmp/SDL2-host
 
-
-WORKDIR /data/app
-
-
 COPY android/ /data/template
-
 
 # build our target SDL2 library (./libs/armeabi/SDL2.so). the reason
 # it's important to build our android-version of SDL2 is that we need
