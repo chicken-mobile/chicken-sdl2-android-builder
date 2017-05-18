@@ -13,42 +13,45 @@ android apps for you. Inside the docker image you'll find:
 - SDL2.0.5 (on the host and libSDL2.so on Android)
 - sdl2 egg 0.2.0
 
+### Making the docker image
+
 ```sh
 $ git clone https://github.com/chicken-mobile/chicken-sdl2-android-builder
 $ cd chicken-sdl2-android-builder
 $ docker build -t chicken/chicken-sdl2-android-builder:0.1 .
 ```
 
-Then leave this beast over night. The build takes half an hour on my
+Then leave this beast for a while. The build takes half an hour on my
 machine, and the ending docker image will be a horrifying 6GB or
 so. It will also download large quantities of data :-(
 
 Once built though, you should have to tools ready to make an Android
-app that works. Let's try an old SDL2 example from the
-old
-[chicken-android-template](https://github.com/chicken-mobile/chicken-android-template) project. The
-goal is to eventually support all sdl2 standalone apps, but many (like
-demos/basics.scm) don't work out of the box yet. But let's give this
-simple example.scm a try:
+app that should actually work.
+
+### Setup project
+
+Your "game" sources should be at the root of the project directory,
+and the android build project should be under `android`. Let's have a
+loot at the bundled example:
 
 ```sh
-$ mkdir -p ~/games/example && cd ~/games/example
-$ curl https://raw.githubusercontent.com/chicken-mobile/chicken-android-template/master/jni/entry/example.scm > main.scm
+user@host $ mkdir -p ~/games/example && cd ~/games/example
+user@host $ cp chicken-sdl2-android-builder/example/main.scm .
 ```
 
-Note that `main.scm` should now work on your host development machine,
+`main.scm` should work on your host development machine,
 provided you have the sdl2 egg installed:
 
 ```
-$ chicken-install -s sdl2 miscmacros
-$ csi main.scm # note no -s
+user@host $ chicken-install -s sdl2
+user@host $ csi main.scm # note no -s
 ```
 
 You don't need to test that it's working on you host machine, but this
-is probably a good idea. Let's get back to building that Android app:
+is probably a good idea. Back to building this as an Android app:
 
 ```
-$ docker run -it --rm -v $PWD:/data/app -e HOST_USER_ID=`id -u` adellica/chicken-sdl2-android-builder:0.1 bash
+user@host $ docker run -it --rm -v $PWD:/data/app -e HOST_USER_ID=`id -u` adellica/chicken-sdl2-android-builder:0.1 bash
 ```
 
 This command is a mouthful. You may want to put it in a Makefile.
@@ -65,36 +68,49 @@ The docker image contains an Android project template which we copy
 over. We only need to do this once per app:
 
 ```
-/data/app $ cp -r /data/template/ android
-/data/app $ ls -l
+root@builder $ cp -r /data/template/ android
+root@builder $ ls -l
 total 4
 drwxr-xr-x 5 root root   240 May 18 00:13 android
 -rw-r--r-- 1 1000 users 1350 May 18 00:10 main.scm
-/data/app $ cd android/
-/data/app $ build.sh
-...
-...
-BUILD SUCCESSFUL # <-- hopefully
-Total time: 7 seconds
-/data/app $ exit # <-- back to host
 ```
+
+It's probably a good idea, at least for now, to commit this android
+project template into your verion-control system.
+
+### Building the APK
+
+To build from within the container:
+
+```
+root@builder $ cd /data/app/android/
+root@builder $ build.sh
+```
+
+If everything goes as planned, this should produce an
+`SDLActivity-debug.apk`. `build.sh` is just a simple wrapper for
+`ndk-build`, `ant debug` and some cleanup.
+
+### Installing the APK
 
 If volumes were mounted properly, the build artifacts are available on
 our host machine:
 
 ```sh
-$ adb uninstall org.libsdl.app # re-install doesn't work yet :(
-$ adb install android/bin/SDLActivity-debug.apk
+user@host $ adb uninstall org.libsdl.app # re-install doesn't work yet :(
+user@host $ adb install android/bin/SDLActivity-debug.apk
 ```
 
 For this part you'll need some Android tools on the host system in
-order to install the app. I don't know how to do this from the docker
-image.
+order to install the app, or send the `apk` to your phone and install
+it there ("allow external sources" must be on in settings).  I don't
+know how to do `adb install` from within the docker image.
 
 ## TODO
 
-- sdl2-egg: [`create-surface` fails on 32bit platforms](https://gitlab.com/chicken-sdl2/chicken-sdl2/issues/44)
+- sdl2-egg: [`make-surface` fails on 32bit platforms](https://gitlab.com/chicken-sdl2/chicken-sdl2/issues/44)
 - make the resulting docker image much, much smaller (now it's 6GB)
+- provide conventions for bundling assets and resources
 - support multiple architectures (our natives are only armeabi, see `Application.mk`)
 
 ## History
