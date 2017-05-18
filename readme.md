@@ -19,15 +19,17 @@ $ cd chicken-sdl2-android-builder
 $ docker build -t chicken/chicken-sdl2-android-builder:0.1 .
 ```
 
-Then leave this beast over night. The build takes forever and the
-ending docker image will be a horrifying 6GB or so. It will also
-download large quantities of data, unfortunately. This includes the
-Android SDK and NDK, SDL2 and chicken-4.12.0.
+Then leave this beast over night. The build takes half an hour on my
+machine, and the ending docker image will be a horrifying 6GB or
+so. It will also download large quantities of data :-(
 
-Once built, try these steps. Copy over an old SDL2 example from
-chicken-android-template. The goal is to eventually support all sdl2
-standalone apps, but many (like demos/basics.scm) don't work out of
-the box yet. But let's give this simple example.scm a try:
+Once built though, you should have to tools ready to make an Android
+app that works. Let's try an old SDL2 example from the
+old
+[chicken-android-template](https://github.com/chicken-mobile/chicken-android-template) project. The
+goal is to eventually support all sdl2 standalone apps, but many (like
+demos/basics.scm) don't work out of the box yet. But let's give this
+simple example.scm a try:
 
 ```sh
 $ mkdir -p ~/games/example && cd ~/games/example
