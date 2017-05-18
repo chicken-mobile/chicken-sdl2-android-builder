@@ -91,7 +91,9 @@ image.
 
 ## TODO
 
+- sdl2-egg: [`create-surface` fails on 32bit platforms](https://gitlab.com/chicken-sdl2/chicken-sdl2/issues/44)
 - make the resulting docker image much, much smaller (now it's 6GB)
+- support multiple architectures (our natives are only armeabi, see `Application.mk`)
 
 ## History
 
