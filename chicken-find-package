@@ -1,0 +1,26 @@
+#!/bin/sh
+#| -*- scheme -*- |#
+#|
+exec csi -s "$0" "$@"
+|#
+
+;;; Helper program that tries to detect an android project's
+;;; package-name, like org.sdl2.app. It looks for an AndroidManifest.xml.
+;;; TODO: exit with error-code if something goes wrong?
+(use ssax sxpath posix)
+
+(define AndroidManifest.xml
+ (let loop ((path "./") (n 10))
+   (let ((pathname (make-pathname path "AndroidManifest.xml")))
+     (if (file-exists? pathname)
+         pathname
+         (if (> n 0)
+             (loop (conc "../" path) (sub1 n))
+             (begin (print "AndroidManifest.xml not found anywhere")
+                    (exit -1)))))))
+
+
+(print (cadar
+        ((sxpath "//manifest/@package")
+         (ssax:xml->sxml (open-input-file AndroidManifest.xml) '()))))
+
