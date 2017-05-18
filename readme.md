@@ -111,5 +111,6 @@ know how to do `adb install` from within the docker image.
 - sdl2-egg: [`make-surface` fails on 32bit platforms](https://gitlab.com/chicken-sdl2/chicken-sdl2/issues/44)
 - make the resulting docker image much, much smaller (now it's 6GB)
 - provide conventions for bundling assets and resources
+- fix `WARNING: linker: unused DT entry: type 0x1d arg 0x2b1` as discussed [here](http://lists.nongnu.org/archive/html/chicken-users/2017-05/msg00010.html)
 - support multiple architectures (our natives are only armeabi, see `Application.mk`)
 
