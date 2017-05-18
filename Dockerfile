@@ -195,22 +195,27 @@ RUN cd /eggs/nrepl && chicken-install
 
 WORKDIR /data/app
 
-COPY build.sh chicken-copy-libs /usr/bin/
 
 COPY android/ /data/template
 
 
-# build our target SDL2 library (./libs/armeabi/SDL2.so). this target
-# library is needed by the sdl2 egg. the reason it's important to
-# build our android-version of SDL2 is that we need it to build the
-# sdl2 egg below.
-RUN mkdir -p /data/prj-build && cp -rT /data/template/ /data/prj-build && cd /data/prj-build && ndk-build SDL2
-
+# build our target SDL2 library (./libs/armeabi/SDL2.so). the reason
+# it's important to build our android-version of SDL2 is that we need
+# it to build the sdl2 egg below.
+#
+# note that we actually create a dummy android project and run
+# `ndk-build SDL2` on it to get the target SDL2 native. the sdl2-egg
+# build artifacts will be copied to user apps by chicken-copy-libs.
 COPY eggs/sdl2 /eggs/sdl2
-RUN cd /eggs/sdl2 && env SDL2_FLAGS="-I/data/prj-build/jni/SDL/include -L/data/prj-build/obj/local/armeabi/ -lSDL2" chicken-install
-
-# TODO: move this up with chicken-copy-libs
-COPY chicken-find-package /usr/bin
+RUN mkdir -p /tmp/prj && \
+    cp -rT /data/template/ /tmp/prj && \
+    cd /tmp/prj && \
+    ndk-build SDL2 && \
+    cd /eggs/sdl2 && \
+    env SDL2_FLAGS="-I/tmp/prj/jni/SDL/include -L/tmp/prj/obj/local/armeabi/ -lSDL2" \
+        chicken-install && \
+    rm -r /tmp/prj
 
 # TODO: provide a command to dump the android template for easily
 # creating new projects.
+COPY build.sh chicken-copy-libs chicken-find-package /usr/bin/
