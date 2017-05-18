@@ -31,9 +31,9 @@ int start_logger()
         return -1;
     pthread_detach(thr);
 
-    __android_log_write(ANDROID_LOG_DEBUG, tag, "====== will sleep");
-    usleep(1000000);
-    __android_log_write(ANDROID_LOG_DEBUG, tag, "====== done sleeping");
+    // sleep a little to let the logging thread bootstrap and get
+    // ready. TODO: does this actually help?
+    usleep(100000);
     return 0;
 }
 
