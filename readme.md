@@ -16,9 +16,9 @@ android apps for you. Inside the docker image you'll find:
 ### Making the docker image
 
 ```sh
-$ git clone https://github.com/chicken-mobile/chicken-sdl2-android-builder
-$ cd chicken-sdl2-android-builder
-$ docker build -t chicken/chicken-sdl2-android-builder:0.1 .
+user@host $ git clone https://github.com/chicken-mobile/chicken-sdl2-android-builder
+user@host $ cd chicken-sdl2-android-builder
+user@host $ docker build -t chicken/chicken-sdl2-android-builder:0.1 .
 ```
 
 Then leave this beast for a while. The build takes half an hour on my
@@ -36,7 +36,7 @@ loot at the bundled example:
 
 ```sh
 user@host $ mkdir -p ~/games/example && cd ~/games/example
-user@host $ cp chicken-sdl2-android-builder/example/main.scm .
+user@host $ cp ~/chicken-sdl2-android-builder/example/main.scm .
 ```
 
 `main.scm` should work on your host development machine,
@@ -51,7 +51,7 @@ You don't need to test that it's working on you host machine, but this
 is probably a good idea. Back to building this as an Android app:
 
 ```
-user@host $ docker run -it --rm -v $PWD:/data/app -e HOST_USER_ID=`id -u` adellica/chicken-sdl2-android-builder:0.1 bash
+user@host $ docker run -it --rm -v $PWD:/data/app -e HOST_USER_ID=`id -u` chicken/chicken-sdl2-android-builder:0.1 bash
 ```
 
 This command is a mouthful. You may want to put it in a Makefile.
@@ -112,12 +112,4 @@ know how to do `adb install` from within the docker image.
 - make the resulting docker image much, much smaller (now it's 6GB)
 - provide conventions for bundling assets and resources
 - support multiple architectures (our natives are only armeabi, see `Application.mk`)
-
-## History
-
-This project is inspired by
-https://github.com/chicken-mobile/chicken-android-template. The
-template made it easier to get things up and running, but way too
-difficult still. The build process is incredibly fragile and is very
-intrusive to the development machine.
 
