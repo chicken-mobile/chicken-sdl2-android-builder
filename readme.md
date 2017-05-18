@@ -36,7 +36,7 @@ loot at the bundled example:
 
 ```sh
 user@host $ mkdir -p ~/games/example && cd ~/games/example
-user@host $ cp ~/chicken-sdl2-android-builder/example/main.scm .
+user@host $ cp ~/chicken-sdl2-android-builder/examples/basic/main.scm .
 ```
 
 `main.scm` should work on your host development machine,
