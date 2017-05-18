@@ -80,6 +80,7 @@ RUN curl https://code.call-cc.org/releases/4.12.0/chicken-4.12.0.tar.gz \
 ENV ANDROID_PLATFORM_ID=18
 ENV ANDROID_PLATFORM=android-${ANDROID_PLATFORM_ID}
 
+# see https://developer.android.com/ndk/guides/standalone_toolchain.html
 RUN mkdir -p /opt/android-toolchain && \
         /opt/ndk/build/tools/make-standalone-toolchain.sh \
           --platform=android-${ANDROID_PLATFORM_ID} \
@@ -179,3 +180,14 @@ RUN chicken-install miscmacros nrepl
 # TODO: provide a command to dump the android template for easily
 # creating new projects.
 COPY build.sh chicken-copy-libs chicken-find-package /usr/bin/
+
+# needed by opengl-glew, which in turn is needed by gl-math and
+# gl-utils.
+RUN apt-get -y install libglew-dev
+
+RUN chicken-install silex matchable record-variants coops regex make bind
+# unfortunately, opengl-glew's .setup file fails to detect we're on
+# arm when chicken-install does its "installing for target ..."
+RUN chicken-install -host   opengl-glew gl-math gl-utils && \
+    chicken-install -target opengl-glew gl-math gl-utils -D arm
+
