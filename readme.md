@@ -35,8 +35,7 @@ and the android build project should be under `android`. Let's have a
 loot at the bundled example:
 
 ```sh
-user@host $ mkdir -p ~/games/example && cd ~/games/example
-user@host $ cp ~/chicken-sdl2-android-builder/examples/basic/main.scm .
+user@host $ cd examples/basic/main.scm
 ```
 
 `main.scm` should work on your host development machine,
@@ -68,6 +67,8 @@ The docker image contains an Android project template which we copy
 over. We only need to do this once per app:
 
 ```
+root@builder $ pwd
+/data/app
 root@builder $ cp -r /data/template/ android
 root@builder $ ls -l
 total 4
@@ -75,8 +76,8 @@ drwxr-xr-x 5 root root   240 May 18 00:13 android
 -rw-r--r-- 1 1000 users 1350 May 18 00:10 main.scm
 ```
 
-It's probably a good idea, at least for now, to commit this android
-project template into your verion-control system.
+It's probably a good idea, at least for non-trivial games, to commit
+this android project template into your verion-control system.
 
 ### Building the APK
 
