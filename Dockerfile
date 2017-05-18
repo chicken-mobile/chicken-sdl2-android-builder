@@ -183,16 +183,6 @@ RUN cp -r /opt/SDL2-2.0.5 /tmp/SDL2-host && \
     rm -r /tmp/SDL2-host
 
 
-# these takes forever (host, then target):
-COPY eggs/miscmacros /eggs/miscmacros
-RUN cd /eggs/miscmacros && chicken-install
-
-COPY eggs/nrepl /eggs/nrepl
-RUN cd /eggs/nrepl && chicken-install
-
-# COPY eggs/opengl-glew /eggs/opengl-glew
-# RUN cd /eggs/opengl-glew && chicken-install
-
 WORKDIR /data/app
 
 
@@ -215,6 +205,17 @@ RUN mkdir -p /tmp/prj && \
     env SDL2_FLAGS="-I/tmp/prj/jni/SDL/include -L/tmp/prj/obj/local/armeabi/ -lSDL2" \
         chicken-install && \
     rm -r /tmp/prj
+
+# nrepl is needed by entry.scm. miscmacros is just really handy ...
+#
+# don't forget that our global chicken-install is a cross-chicken, so
+# this gives you nrepl on Android too.
+#
+# these builds takes forever (host, then target):
+RUN chicken-install miscmacros nrepl
+
+# COPY eggs/opengl-glew /eggs/opengl-glew
+# RUN cd /eggs/opengl-glew && chicken-install
 
 # TODO: provide a command to dump the android template for easily
 # creating new projects.
