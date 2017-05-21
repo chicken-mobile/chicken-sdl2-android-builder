@@ -6,5 +6,5 @@ android/bin/SDLActivity-debug.apk: *.scm
 		adellica/chicken-sdl2-android-builder:0.1 sh -c 'cd /data/app/android && build.sh'
 
 reinstall:
-	adb uninstall org.libsdl.app \
+	adb uninstall org.chicken.demo.fluid.rainbow \
 	 && adb install -r android/bin/SDLActivity-debug.apk 
