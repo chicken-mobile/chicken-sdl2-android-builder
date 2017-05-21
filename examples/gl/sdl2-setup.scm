@@ -33,3 +33,6 @@
 ;; (set! (sdl2:gl-swap-interval) 1) ;; turn on vsync (default)
 
 
+;; this is just very useful somtimes.
+(set-gc-report! #t)
+

@@ -295,7 +295,7 @@ void main() {
     float d = distance(Point, gl_FragCoord.xy);
     if (d < Radius) {
         float a = (Radius - d) * 0.5;
-        a = min(a, 1.0);
+        a = (d/Radius);//min(a, 1.0);
         FragColor = vec4(FillColor, a);
     } else {
         FragColor = vec4(0);
@@ -481,13 +481,16 @@ void main() {
 
         (render-square))))))
 
-(define vel        (create-canvas 512 512 2))
-(define vel2       (create-canvas 512 512 2))
-(define den        (create-canvas 512 512 1))
-(define den2       (create-canvas 512 512 1))
-(define divergence (create-canvas 512 512 3))
-(define prs        (create-canvas 512 512 1))
-(define prs2       (create-canvas 512 512 1))
+
+(begin
+  (define gridsize 512)
+  (define vel        (create-canvas gridsize gridsize 2))
+  (define vel2       (create-canvas gridsize gridsize 2))
+  (define den        (create-canvas gridsize gridsize 1))
+  (define den2       (create-canvas gridsize gridsize 1))
+  (define divergence (create-canvas gridsize gridsize 3))
+  (define prs        (create-canvas gridsize gridsize 1))
+  (define prs2       (create-canvas gridsize gridsize 1)))
 
 
 ;; (p/fill vel 0 0 0 0)
@@ -506,20 +509,6 @@ void main() {
                   r g b a)))
 
 ;; (rain den 1 0 0 0)
-
-(define (fluid-iteration)
-  ;;(p/pset   den   50  50       1 0 0 0)
-  (p/splat  den  256 256 20    1 0 0)
-  (p/advect vel2 vel vel 1 1) (canvas-swap! vel vel2)
-  (p/advect den2 vel den 1 1) (canvas-swap! den den2)
-  (p/divergence divergence vel)
-
-  (p/fill prs 0 0 0 0)
-  (repeat 16
-          (p/jacobi prs2 prs divergence)
-          (canvas-swap! prs prs2))
-
-  (p/subtract-gradient vel2 vel prs) (canvas-swap! vel vel2) )
 
 
 (define visualize
@@ -566,38 +555,37 @@ void main() {
        (render-square)))))
 
 
-(define (handle event)
-  (case (sdl2:event-type event)
-    ((quit) (sdl2:quit!) (exit 0))
-    ((window)
-     (receive (w h) (sdl2:window-size window)
-       (gl:viewport 0 0 w h)))
-    ((key-down)
-     (print "handling key" event))
-    ((mouse-motion)
-     ;;(print "handling mouse-motion event: " event)
-     (define mx (sdl2:mouse-motion-event-x event))
-     (define my (sdl2:mouse-motion-event-y event))
+(define handle
+  (let ((up #t))
+    (lambda (event)
+      (case (sdl2:event-type event)
+        ((quit) (sdl2:quit!) (exit 0))
+        ((window)
+         (receive (w h) (sdl2:window-size window)
+           (gl:viewport 0 0 w h)))
+        ((key-down)
+         (print "handling key" event)
+         (when (eq? 'menu (sdl2:keyboard-event-sym event))
+           (p/fill den 0 0 0 0)
+           (p/fill vel 0 0 0 0)))
+        ((mouse-motion)
+         ;;(print "handling mouse-motion event: " event)
+         (define mx (sdl2:mouse-motion-event-x event))
+         (define my (sdl2:mouse-motion-event-y event))
 
-     (receive (w h) (sdl2:window-size window)
-       (let ((x (* (canvas-w den) (/ mx w)))
-             (y (* (canvas-h den) (- 1 (/ my h))))
-             (xx (+ (sdl2:mouse-motion-event-xrel event))) ;; r
-             (yy (- (sdl2:mouse-motion-event-yrel event))))
-         (print xx "x" yy)
-         (p/splat vel   x y 5
-                  xx yy ;; g
-                  0 ;; b
-                  ))))
-    (else (print "unhandled " event))))
+         (unless up
+           (receive (w h) (sdl2:window-size window)
+             (let ((x (* (canvas-w den) (/ mx w)))
+                   (y (* (canvas-h den) (- 1 (/ my h))))
+                   (xx (* 0.2 (+ (sdl2:mouse-motion-event-xrel event)))) ;; r
+                   (yy (* 0.2 (- (sdl2:mouse-motion-event-yrel event)))))
+               (p/splat vel   x y 15
+                        xx yy 0 ;; r g b
+                        ))))
+         (set! up (null? (sdl2:mouse-motion-event-state event))))
+        ((mouse-button-up) (set! up #t))
+        (else (print "unhandled " event))))))
 
-
-(define (render canvas)
-  (p/add (receive (w h) (sdl2:window-size window)
-                (make-canvas 0 #f w h 3))
-              canvas
-              0)
-  (gl-utils:check-error))
 
 (define core-iteration
   (let ((event (sdl2:make-event)))
@@ -607,26 +595,49 @@ void main() {
       (gl:clear-color 0 0 0 0)
       (gl:clear gl:+color-buffer-bit+)
 
-      (fluid-iteration)
+      (p/splat  den
+                (* 0.5 (canvas-w den))
+                (* 0.5 (canvas-h den))
+                20
+                1 0 0)
+      (p/advect vel2 vel vel 1 0.9999) (canvas-swap! vel vel2)
+      (p/advect den2 vel den 1 0.99) (canvas-swap! den den2)
+      (p/divergence divergence vel)
+
+      (p/fill prs 0 0 0 0)
+      (repeat 20
+              (p/jacobi prs2 prs divergence)
+              (canvas-swap! prs prs2))
+
+      (p/subtract-gradient vel2 vel prs) (canvas-swap! vel vel2) 
+
+
       (receive (w h) (sdl2:window-size window)
-       (visualize w h  den vel))
+        (visualize w h  den vel))
       (sdl2:gl-swap-window! window))))
 
+(define (gameloop proc)
+  (define cm current-milliseconds)
+  (let loop ((n 0) (t (cm)))
+    (proc)
+    (cond ((> (- (cm) t) 2000)
+           (set! fps (inexact->exact (round (/ n (/ (- (cm) t) 1000)))))
+           (print "fps " fps)
+           (set! t (cm))
+           (set! n 0)))
+    (loop (add1 n) t)))
 
+;; don't reach nrepl, so we have only 1 thread (yields fewer major GCs)
+(gameloop core-iteration)
+
+;; repl-friendly game-loop with fps counter
 (define fps 0) ;; <-- access from your repl
 (begin (handle-exceptions e void (thread-terminate! game-thread))
        (define game-thread ;; (thread-state game-thread)
          (thread-start!
           (lambda ()
-            (define cm current-milliseconds)
-            (let loop ((n 0) (t (cm)))
-              (thread-yield!) (thread-sleep! 0.01)
-              (core-iteration)
-              (cond ((> (- (cm) t) 2000)
-                     (set! fps (inexact->exact (round (/ n (/ (- (cm) t) 1000)))))
-                     (set! t (cm))
-                     (set! n 0)))
+            (gameloop (lambda ()
+                        (core-iteration)
+                        (thread-yield!)))))))
 
-              (loop (add1 n) t)))))
-       (thread-quantum-set! game-thread 0))
 
