@@ -63,33 +63,38 @@ out vec4 FragColor;
 
 uniform sampler2D DensityTexture;
 uniform sampler2D VelocityTexture;
+uniform sampler2D PressureTexture;
 uniform vec2 InverseSize;
 
 void main() {
  vec2 fragCoord = gl_FragCoord.xy;
- float density = texture(DensityTexture, InverseSize * fragCoord).x;
  vec2  vel     = texture(VelocityTexture, InverseSize * fragCoord).xy;
- FragColor = vec4(density, .5+.5*vel.x, .5+.5*vel.y, 0);
+ float density = texture(DensityTexture, InverseSize * fragCoord).x;
+ float pressure = texture(PressureTexture, InverseSize * fragCoord).x;
+ FragColor = vec4(length(vel), pressure, density, 0);
 }
 "))
-    (define DensityTexture  (gl:get-uniform-location (program-id prg) "DensityTexture"))
-    (define VelocityTexture (gl:get-uniform-location (program-id prg) "VelocityTexture"))
-    (define InverseSize     (gl:get-uniform-location (program-id prg) "InverseSize"))
+    (let-program-locations
+     prg (VelocityTexture DensityTexture PressureTexture InverseSize)
 
-    (lambda (w h  den vel)
-      (with-program
-       prg
+     (lambda (w h  vel den prs)
+       (with-program
+        prg
 
-       (gl:uniform1i VelocityTexture   1)
-       (gl:active-texture gl:+texture1+)
-       (gl:bind-texture   gl:+texture-2d+ (canvas-tex vel))
+        (gl:uniform1i PressureTexture  2)
+        (gl:active-texture gl:+texture2+)
+        (gl:bind-texture   gl:+texture-2d+ (canvas-tex prs))
 
-       (gl:uniform1i DensityTexture   0)
-       (gl:active-texture gl:+texture0+)
-       (gl:bind-texture   gl:+texture-2d+ (canvas-tex den))
+        (gl:uniform1i VelocityTexture  1)
+        (gl:active-texture gl:+texture1+)
+        (gl:bind-texture   gl:+texture-2d+ (canvas-tex vel))
 
-       (gl:uniform2f InverseSize (/ 1 w) (/ 1 h))
-       (render-square)))))
+        (gl:uniform1i DensityTexture   0)
+        (gl:active-texture gl:+texture0+)
+        (gl:bind-texture   gl:+texture-2d+ (canvas-tex den))
+
+        (gl:uniform2f InverseSize (/ 1 w) (/ 1 h))
+        (render-square))))))
 
 
 (define handle
@@ -150,7 +155,7 @@ void main() {
 
 
       (receive (w h) (sdl2:window-size window)
-        (visualize w h  den vel))
+        (visualize w h  den vel prs))
       (sdl2:gl-swap-window! window))))
 
 (define (gameloop proc)
