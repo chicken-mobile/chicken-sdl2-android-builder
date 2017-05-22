@@ -4,8 +4,8 @@
 
 ;; ====================
 (define window (sdl2:create-window!
-                "SDL2 + OpenGL Example [floating]"
-                'undefined 'undefined 640 480
+                "SDL2 + OpenGL Example"
+                'undefined 'undefined 512 512
                 '(opengl)))
 
 
@@ -34,5 +34,6 @@
 
 
 ;; this is just very useful somtimes.
-(set-gc-report! #t)
+;; (set-gc-report! #t)
+
 

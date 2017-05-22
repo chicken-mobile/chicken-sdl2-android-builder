@@ -635,7 +635,7 @@ void main() {
     (loop (add1 n) t)))
 
 ;; don't reach nrepl, so we have only 1 thread (yields fewer major GCs)
-(gameloop core-iteration)
+;;(gameloop core-iteration)
 
 ;; repl-friendly game-loop with fps counter
 (define fps 0) ;; <-- access from your repl
