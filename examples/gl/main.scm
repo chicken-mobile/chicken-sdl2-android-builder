@@ -79,15 +79,14 @@ void main() {
     (lambda (w h  den vel)
       (with-program
        prg
-       
-       (gl:uniform1i DensityTexture   0)
-       (gl:active-texture gl:+texture0+)
-       (gl:bind-texture   gl:+texture-2d+ (canvas-tex den))
 
        (gl:uniform1i VelocityTexture   1)
        (gl:active-texture gl:+texture1+)
        (gl:bind-texture   gl:+texture-2d+ (canvas-tex vel))
+
+       (gl:uniform1i DensityTexture   0)
        (gl:active-texture gl:+texture0+)
+       (gl:bind-texture   gl:+texture-2d+ (canvas-tex den))
 
        (gl:uniform2f InverseSize (/ 1 w) (/ 1 h))
        (render-square)))))
