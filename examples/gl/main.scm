@@ -64,13 +64,13 @@ void main() {
  vec2  vel     = texture(VelocityTexture, InverseSize * fragCoord).xy;
  float density = texture(DensityTexture, InverseSize * fragCoord).x;
  float pressure = texture(PressureTexture, InverseSize * fragCoord).x;
- FragColor = vec4(length(vel), pressure, density, 0);
+ FragColor = vec4(length(vel), 10.0 * pressure, density, 0);
 }
 "))
     (let-program-locations
      prg (VelocityTexture DensityTexture PressureTexture InverseSize)
 
-     (lambda (w h  vel den prs)
+     (lambda (w h  vel prs den)
        (with-program
         prg
 
@@ -148,7 +148,7 @@ void main() {
 
 
       (receive (w h) (sdl2:window-size window)
-        (visualize w h  den vel prs))
+        (visualize w h  vel prs den))
       (sdl2:gl-swap-window! window))))
 
 (define (gameloop proc)
