@@ -23,7 +23,7 @@
 
 (define p/add
 
-  (let ((program-blue
+  (let ((prg
          (create-program
           #f
           "
@@ -41,19 +41,18 @@ void main() {
  FragColor = clamp(texture(VelocityTexture, InverseSize * fragCoord) + amount, 0.0, 1.0);
 }
 ")))
-    (define $InverseSize (gl:get-uniform-location (program-id program-blue) "InverseSize"))
-    (define $amount (gl:get-uniform-location (program-id program-blue) "amount"))
+    (let-program-locations
+     prg (InverseSize amount)
+     (lambda (out source amount)
+       (with-output-to-canvas
+        out
+        (with-program
+         program-blue
+         (gl:uniform2f $InverseSize (/ 1 (canvas-w out)) (/ 1 (canvas-h out)))
+         (gl:uniform1f $amount amount)
 
-    (lambda (out source amount)
-      (with-output-to-canvas
-       out
-       (with-program
-        program-blue
-        (gl:uniform2f $InverseSize (/ 1 (canvas-w out)) (/ 1 (canvas-h out)))
-        (gl:uniform1f $amount amount)
-
-        (gl:bind-texture gl:+texture-2d+ (canvas-tex source))
-        (render-square))))))
+         (gl:bind-texture gl:+texture-2d+ (canvas-tex source))
+         (render-square)))))))
 
 (define p/advect
   (let ()
@@ -87,33 +86,30 @@ void main() {
     FragColor = Dissipation * texture(SourceTexture, coord);
 }
 "))
-    (define VelocityTexture (gl:get-uniform-location (program-id prg) "VelocityTexture"))
-    (define SourceTexture   (gl:get-uniform-location (program-id prg) "SourceTexture"))
-    (define InverseSize     (gl:get-uniform-location (program-id prg) "InverseSize"))
-    (define TimeStep        (gl:get-uniform-location (program-id prg) "TimeStep"))
-    (define Dissipation     (gl:get-uniform-location (program-id prg) "Dissipation"))
+    (let-program-locations
+     prg (VelocityTexture SourceTexture InverseSize TimeStep Dissipation)
 
-    (lambda (out  velocity source timestep dissipation)
-      (assert (= 2 (canvas-d velocity)))
-      (with-output-to-canvas
-       out
-       (with-program
-        prg
+     (lambda (out  velocity source timestep dissipation)
+       (assert (= 2 (canvas-d velocity)))
+       (with-output-to-canvas
+        out
+        (with-program
+         prg
 
-        (gl:uniform1i VelocityTexture 0)
-        (gl:active-texture gl:+texture0+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
+         (gl:uniform1i VelocityTexture 0)
+         (gl:active-texture gl:+texture0+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
 
-        (gl:uniform1i SourceTexture   1)
-        (gl:active-texture gl:+texture1+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex source))
+         (gl:uniform1i SourceTexture   1)
+         (gl:active-texture gl:+texture1+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex source))
 
-        (gl:active-texture gl:+texture0+)
+         (gl:active-texture gl:+texture0+)
 
-        (gl:uniform2f InverseSize     (/ 1 (canvas-w out)) (/ 1 (canvas-h out)))
-        (gl:uniform1f TimeStep timestep)
-        (gl:uniform1f Dissipation dissipation)
-        (render-square))))))
+         (gl:uniform2f InverseSize     (/ 1 (canvas-w out)) (/ 1 (canvas-h out)))
+         (gl:uniform1f TimeStep timestep)
+         (gl:uniform1f Dissipation dissipation)
+         (render-square)))))))
 
 (define p/splat
   (let ()
@@ -140,26 +136,24 @@ void main() {
     }
 }
 "))
-    (define Point     (gl:get-uniform-location (program-id prg) "Point"))
-    (define Radius    (gl:get-uniform-location (program-id prg) "Radius"))
-    (define FillColor (gl:get-uniform-location (program-id prg) "FillColor"))
+    (let-program-locations
+     prg (Point Radius FillColor)
 
-    (lambda (out  x y radius  r g b)
-      (with-output-to-canvas
-       out
-       (with-program
-        prg
+     (lambda (out  x y radius  r g b)
+       (with-output-to-canvas
+        out
+        (with-program
+         prg
 
-        (gl:uniform2f Point     x y)
-        (gl:uniform1f Radius    radius)
-        (gl:uniform3f FillColor r g b)
+         (gl:uniform2f Point     x y)
+         (gl:uniform1f Radius    radius)
+         (gl:uniform3f FillColor r g b)
 
-        (gl:enable gl:+blend+)
-        ;; gl:+one-minus-src-alpha+ wont work on my fairphone2! why!?
-        (gl:blend-func gl:+one+ gl:+one+)
-        (render-square)
-        (gl:disable gl:+blend+)
-        )))))
+         (gl:enable gl:+blend+)
+         ;; gl:+one-minus-src-alpha+ wont work on my fairphone2! why!?
+         (gl:blend-func gl:+one+ gl:+one+)
+         (render-square)
+         (gl:disable gl:+blend+)))))))
 
 (define p/divergence
   (let ()
@@ -185,22 +179,22 @@ void main() {
     FragColor = HalfInverseCellSize * (vE.x - vW.x + vN.y - vS.y);
 }
 "))
-    (define Velocity            (gl:get-uniform-location (program-id prg) "Velocity"))
-    (define HalfInverseCellSize (gl:get-uniform-location (program-id prg) "HalfInverseCellSize"))
+    (let-program-locations
+     prg (Velocity HalfInverseCellSize)
 
-    (lambda (out velocity)
+     (lambda (out velocity)
 
-      (with-output-to-canvas
-       out
-       (with-program
-        prg
+       (with-output-to-canvas
+        out
+        (with-program
+         prg
 
-        (gl:uniform1i Velocity 0)
-        (gl:active-texture gl:+texture0+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
+         (gl:uniform1i Velocity 0)
+         (gl:active-texture gl:+texture0+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
 
-        (gl:uniform1f HalfInverseCellSize (/ 0.5 1.25))
-        (render-square))))))
+         (gl:uniform1f HalfInverseCellSize (/ 0.5 1.25))
+         (render-square)))))))
 
 (define p/jacobi
   (let ()
@@ -232,32 +226,30 @@ void main() {
 }
 "))
 
-    (define Pressure    (gl:get-uniform-location (program-id prg) "Pressure"))
-    (define Divergence  (gl:get-uniform-location (program-id prg) "Divergence"))
-    (define Alpha       (gl:get-uniform-location (program-id prg) "Alpha"))
-    (define InverseBeta (gl:get-uniform-location (program-id prg) "InverseBeta"))
+    (let-program-locations
+     prg (Pressure Divergence Alpha InverseBeta)
 
-    (lambda (out pressure divergence)
-      (with-output-to-canvas
-       out
-       (with-program
-        prg
+     (lambda (out pressure divergence)
+       (with-output-to-canvas
+        out
+        (with-program
+         prg
 
 
-        (define CellSize 1.25)
+         (define CellSize 1.25)
 
-        (gl:uniform1i Divergence 1)
-        (gl:active-texture gl:+texture1+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex divergence))
+         (gl:uniform1i Divergence 1)
+         (gl:active-texture gl:+texture1+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex divergence))
 
-        (gl:uniform1i Pressure 0)
-        (gl:active-texture gl:+texture0+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex pressure))
+         (gl:uniform1i Pressure 0)
+         (gl:active-texture gl:+texture0+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex pressure))
 
-        (gl:uniform1f Alpha (* (- CellSize) CellSize))
-        (gl:uniform1f InverseBeta 0.25)
+         (gl:uniform1f Alpha (* (- CellSize) CellSize))
+         (gl:uniform1f InverseBeta 0.25)
 
-        (render-square))))))
+         (render-square)))))))
 
 (define p/subtract-gradient
   (let ()
@@ -293,29 +285,26 @@ void main() {
 }
 "))
 
-    
+    (let-program-locations
+     prg (Velocity Pressure GradientScale)
 
-    (define Velocity (gl:get-uniform-location (program-id prg) "Velocity"))
-    (define Pressure (gl:get-uniform-location (program-id prg) "Pressure"))
-    (define GradientScale (gl:get-uniform-location (program-id prg) "GradientScale"))
+     (lambda (out velocity pressure)
+       (with-output-to-canvas
+        out
+        (with-program
+         prg
 
-    (lambda (out velocity pressure)
-      (with-output-to-canvas
-       out
-       (with-program
-        prg
+         (define CellSize 1.25)
 
-        (define CellSize 1.25)
+         (gl:uniform1i Pressure 1)
+         (gl:active-texture gl:+texture1+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex pressure))
 
-        (gl:uniform1i Pressure 1)
-        (gl:active-texture gl:+texture1+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex pressure))
+         (gl:uniform1i Velocity 0)
+         (gl:active-texture gl:+texture0+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
 
-        (gl:uniform1i Velocity 0)
-        (gl:active-texture gl:+texture0+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
+         (gl:uniform1f GradientScale (/ 1.125 CellSize))
 
-        (gl:uniform1f GradientScale (/ 1.125 CellSize))
-
-        (render-square))))))
+         (render-square)))))))
 

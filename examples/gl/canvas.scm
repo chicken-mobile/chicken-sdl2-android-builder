@@ -24,6 +24,19 @@
                    (lambda () (gl:bind-framebuffer gl:+framebuffer+ 0))))))
 
 
+;; bind variables to locations with some error checking. quite handy!
+(define-syntax let-program-locations
+  (syntax-rules ()
+    ((_ src (var rest ...) body ...)
+     (let ((prg (if (string? src) (create-program #f src) src)))
+       (let ((var (gl:get-uniform-location (program-id prg) (symbol->string (quote var)))))
+         (if (< var 0)
+             (error "invalid location" (quote var) var)
+             (let-program-locations prg (rest ...) body ...)))))
+    ((_ src () body ...)
+     (begin body ...))))
+
+
 ;; ==================== program record ====================
 (define-record program id)
 (define (create-program vertex-shader fragment-shader)
