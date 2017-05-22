@@ -64,7 +64,7 @@ void main() {
  vec2  vel     = texture(VelocityTexture, InverseSize * fragCoord).xy;
  float density = texture(DensityTexture, InverseSize * fragCoord).x;
  float pressure = texture(PressureTexture, InverseSize * fragCoord).x;
- FragColor = vec4(length(vel), 10.0 * pressure, density, 0);
+ FragColor = vec4(length(vel), 0.5 + 10.0 * pressure, density, 0);
 }
 "))
     (let-program-locations
@@ -133,7 +133,7 @@ void main() {
       (p/splat  den 0.5 0.5 20 1 0 0)
 
       (p/advect vel2 vel vel 1 0.9999) (canvas-swap! vel vel2)
-      (p/advect den2 vel den 1 0.99) (canvas-swap! den den2)
+      (p/advect den2 vel den 1 0.99)   (canvas-swap! den den2)
       (p/divergence divergence vel)
 
       (p/fill prs 0 0 0 0)
