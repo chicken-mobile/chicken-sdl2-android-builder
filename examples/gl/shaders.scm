@@ -172,6 +172,7 @@ precision mediump float;
 out float FragColor;
 
 uniform sampler2D Velocity;
+uniform sampler2D Obstacles;
 uniform float HalfInverseCellSize;
 
 void main() {
@@ -183,18 +184,34 @@ void main() {
     vec2 vE = texelFetchOffset(Velocity, T, 0, ivec2(1, 0)).xy;
     vec2 vW = texelFetchOffset(Velocity, T, 0, ivec2(-1, 0)).xy;
 
+   // Find neighboring obstacles:
+    vec3 oN = texelFetchOffset(Obstacles, T, 0, ivec2(0, 1)).xyz;
+    vec3 oS = texelFetchOffset(Obstacles, T, 0, ivec2(0, -1)).xyz;
+    vec3 oE = texelFetchOffset(Obstacles, T, 0, ivec2(1, 0)).xyz;
+    vec3 oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1, 0)).xyz;
+
+    // Use obstacle velocities for solid cells:
+    if (oN.x > 0.0) vN = vec2(0.0, 0.0); //oN.yz;
+    if (oS.x > 0.0) vS = vec2(0.0, 0.0); //oS.yz;
+    if (oE.x > 0.0) vE = vec2(0.0, 0.0); //oE.yz;
+    if (oW.x > 0.0) vW = vec2(0.0, 0.0); //oW.yz;
+
     FragColor = HalfInverseCellSize * (vE.x - vW.x + vN.y - vS.y);
 }
 "))
     (let-program-locations
-     prg (Velocity HalfInverseCellSize)
+     prg (Velocity Obstacles HalfInverseCellSize)
 
-     (lambda (out velocity)
+     (lambda (out velocity obstacles)
 
        (with-output-to-canvas
         out
         (with-program
          prg
+
+         (gl:uniform1i Obstacles 1)
+         (gl:active-texture gl:+texture1+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
 
          (gl:uniform1i Velocity 0)
          (gl:active-texture gl:+texture0+)
@@ -214,6 +231,7 @@ out vec4 FragColor;
 
 uniform sampler2D Pressure;
 uniform sampler2D Divergence;
+uniform sampler2D Obstacles;
 
 uniform float Alpha;
 uniform float InverseBeta;
@@ -228,15 +246,27 @@ void main() {
     vec4 pW = texelFetchOffset(Pressure, T, 0, ivec2(-1, 0));
     vec4 pC = texelFetch(Pressure, T, 0);
 
+    // Find neighboring obstacles:
+    vec3 oN = texelFetchOffset(Obstacles, T, 0, ivec2(0, 1)).xyz;
+    vec3 oS = texelFetchOffset(Obstacles, T, 0, ivec2(0, -1)).xyz;
+    vec3 oE = texelFetchOffset(Obstacles, T, 0, ivec2(1, 0)).xyz;
+    vec3 oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1, 0)).xyz;
+
+    // Use center pressure for solid cells:
+    if (oN.x > 0.0) pN = pC;
+    if (oS.x > 0.0) pS = pC;
+    if (oE.x > 0.0) pE = pC;
+    if (oW.x > 0.0) pW = pC;
+
     vec4 bC = texelFetch(Divergence, T, 0);
     FragColor = (pW + pE + pS + pN + Alpha * bC) * InverseBeta;
 }
 "))
 
     (let-program-locations
-     prg (Pressure Divergence Alpha InverseBeta)
+     prg (Pressure Divergence Obstacles Alpha InverseBeta)
 
-     (lambda (out pressure divergence)
+     (lambda (out pressure divergence obstacles)
        (with-output-to-canvas
         out
         (with-program
@@ -244,6 +274,10 @@ void main() {
 
 
          (define CellSize 1.25)
+
+         (gl:uniform1i Obstacles  2)
+         (gl:active-texture gl:+texture2+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
 
          (gl:uniform1i Divergence 1)
          (gl:active-texture gl:+texture1+)
@@ -268,6 +302,7 @@ out vec2 FragColor;
 
 uniform sampler2D Velocity;
 uniform sampler2D Pressure;
+uniform sampler2D Obstacles;
 uniform float GradientScale;
 
 void main() {
@@ -280,9 +315,21 @@ void main() {
     float pW = texelFetchOffset(Pressure, T, 0, ivec2(-1, 0)).r;
     float pC = texelFetch(Pressure, T, 0).r;
 
+
+    // Find neighboring obstacles:
+    vec3 oN = texelFetchOffset(Obstacles, T, 0, ivec2(0, 1)).xyz;
+    vec3 oS = texelFetchOffset(Obstacles, T, 0, ivec2(0, -1)).xyz;
+    vec3 oE = texelFetchOffset(Obstacles, T, 0, ivec2(1, 0)).xyz;
+    vec3 oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1, 0)).xyz;
+
     // Use center pressure for solid cells:
     vec2 obstV = vec2(0);
     vec2 vMask = vec2(1);
+
+    if (oN.x > 0.0) { pN = pC; obstV.y = 0.0; vMask.y = 0.0; }
+    if (oS.x > 0.0) { pS = pC; obstV.y = 0.0; vMask.y = 0.0; }
+    if (oE.x > 0.0) { pE = pC; obstV.x = 0.0; vMask.x = 0.0; }
+    if (oW.x > 0.0) { pW = pC; obstV.x = 0.0; vMask.x = 0.0; }
 
     // Enforce the free-slip boundary condition:
     vec2 oldV = texelFetch(Velocity, T, 0).xy;
@@ -293,15 +340,19 @@ void main() {
 "))
 
     (let-program-locations
-     prg (Velocity Pressure GradientScale)
+     prg (Velocity Pressure Obstacles GradientScale)
 
-     (lambda (out velocity pressure)
+     (lambda (out velocity pressure obstacles)
        (with-output-to-canvas
         out
         (with-program
          prg
 
          (define CellSize 1.25)
+
+         (gl:uniform1i Obstacles 2)
+         (gl:active-texture gl:+texture2+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
 
          (gl:uniform1i Pressure 1)
          (gl:active-texture gl:+texture1+)

@@ -28,7 +28,8 @@
   (define den2       (create-canvas gridsize gridsize 1))
   (define divergence (create-canvas gridsize gridsize 1))
   (define prs        (create-canvas gridsize gridsize 1))
-  (define prs2       (create-canvas gridsize gridsize 1)))
+  (define prs2       (create-canvas gridsize gridsize 1))
+  (define obstacles  (create-canvas gridsize gridsize 3)))
 
 
 ;; (p/fill vel 0 0 0 0)
@@ -61,8 +62,8 @@ uniform vec2 InverseSize;
 
 void main() {
  vec2 fragCoord = gl_FragCoord.xy;
- vec2  vel     = texture(VelocityTexture, InverseSize * fragCoord).xy;
- float density = texture(DensityTexture, InverseSize * fragCoord).x;
+ vec2  vel     = (vec4(1.0,0.0,0.0,1.0)*texture(VelocityTexture, InverseSize * fragCoord)).xy;
+ float density = (vec4(1.0,0.0,0.0,1.0)*texture(DensityTexture, InverseSize * fragCoord)).x;
  float pressure = texture(PressureTexture, InverseSize * fragCoord).x;
  FragColor = vec4(length(vel), 0.5 + 10.0 * pressure, density, 0);
 }
@@ -134,14 +135,14 @@ void main() {
 
       (p/advect vel2 vel vel 1 0.9999) (canvas-swap! vel vel2)
       (p/advect den2 vel den 1 0.99)   (canvas-swap! den den2)
-      (p/divergence divergence vel)
+      (p/divergence divergence vel obstacles)
 
       (p/fill prs 0 0 0 0)
-      (repeat 20
-              (p/jacobi prs2 prs divergence)
+      (repeat 19
+              (p/jacobi prs2 prs divergence obstacles)
               (canvas-swap! prs prs2))
 
-      (p/subtract-gradient vel2 vel prs) (canvas-swap! vel vel2) 
+      (p/subtract-gradient vel2 vel prs obstacles) (canvas-swap! vel vel2)
 
 
       (receive (w h) (sdl2:window-size window)
