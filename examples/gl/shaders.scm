@@ -28,6 +28,52 @@
 
 ;; (map canvas-tex (list den den2 vel vel2 divergence prs prs2))
 
+
+(define p/splat
+  (let ()
+    (define prg
+      (create-program
+       #f "
+#version 300 es
+precision mediump float;
+
+out vec4 FragColor;
+
+uniform vec2 Point;
+uniform float Radius;
+uniform vec3 FillColor;
+
+void main() {
+    float d = distance(Point, gl_FragCoord.xy);
+    if (d < Radius) {
+        float a = (Radius - d) * 0.5;
+        a = (d/Radius);//min(a, 1.0);
+        FragColor = vec4(FillColor, 1.0);
+    } else {
+        FragColor = vec4(0);
+    }
+}
+"))
+    (let-program-locations
+     prg (Point Radius FillColor)
+
+     (lambda (out  x y radius  r g b)
+       (with-output-to-canvas
+        out
+        (with-program
+         prg
+
+         (gl:uniform2f Point     (* x (canvas-w out)) (* (canvas-h out) y))
+         (gl:uniform1f Radius    (* radius (canvas-h out)))
+         (gl:uniform3f FillColor r g b)
+
+         (gl:enable gl:+blend+)
+         ;;(gl:blend-func gl:+one+ gl:+one+)
+         (gl:blend-func gl:+one+ gl:+one-minus-src-alpha+)
+         ;; gl:+one-minus-src-alpha+ wont work on my fairphone2! why!?
+         (render-square)
+         (gl:disable gl:+blend+)))))))
+
 (define p/add
 
   (let ((prg
@@ -118,49 +164,6 @@ void main() {
          (gl:uniform1f Dissipation dissipation)
          (render-square)))))))
 
-(define p/splat
-  (let ()
-    (define prg
-      (create-program
-       #f "
-#version 300 es
-precision mediump float;
-
-out vec4 FragColor;
-
-uniform vec2 Point;
-uniform float Radius;
-uniform vec3 FillColor;
-
-void main() {
-    float d = distance(Point, gl_FragCoord.xy);
-    if (d < Radius) {
-        float a = (Radius - d) * 0.5;
-        a = (d/Radius);//min(a, 1.0);
-        FragColor = vec4(FillColor, a);
-    } else {
-        FragColor = vec4(0);
-    }
-}
-"))
-    (let-program-locations
-     prg (Point Radius FillColor)
-
-     (lambda (out  x y radius  r g b)
-       (with-output-to-canvas
-        out
-        (with-program
-         prg
-
-         (gl:uniform2f Point     (* x (canvas-w out)) (* (canvas-h out) y))
-         (gl:uniform1f Radius    radius)
-         (gl:uniform3f FillColor r g b)
-
-         (gl:enable gl:+blend+)
-         ;; gl:+one-minus-src-alpha+ wont work on my fairphone2! why!?
-         (gl:blend-func gl:+one+ gl:+one+)
-         (render-square)
-         (gl:disable gl:+blend+)))))))
 
 (define p/divergence
   (let ()
