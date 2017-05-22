@@ -124,9 +124,9 @@ void main() {
                    (y (- 1 (/ my h)))
                    (xx (* 0.2 (+ (sdl2:mouse-motion-event-xrel event)))) ;; r
                    (yy (* 0.2 (- (sdl2:mouse-motion-event-yrel event)))))
-               (p/splat vel   x y 15
-                        xx yy 0 ;; r g b
-                        ))))
+               (if (member 'right (sdl2:mouse-motion-event-state event))
+                   (p/splat obstacles x y 0.01   0 0 0)
+                   (p/splat obstacles x y 0.01   1 0 0)))))
          (set! up (null? (sdl2:mouse-motion-event-state event))))
         ((mouse-button-up) (set! up #t))
         (else (print "unhandled " event))))))
@@ -140,14 +140,17 @@ void main() {
       (gl:clear-color 0 0 0 0)
       (gl:clear gl:+color-buffer-bit+)
 
-      (p/splat  den 0.5 0.5 20 1 0 0)
+      (p/splat  den 0.5  0.5 0.05       1000.0 0 0)
+      (unless (sdl2:scancode-pressed? 'lshift)
+        (p/splat  vel 0.25 0.5 0.01       2.0 0 0))
 
-      (p/advect vel2 vel vel 1 0.9999) (canvas-swap! vel vel2)
-      (p/advect den2 vel den 1 0.99)   (canvas-swap! den den2)
+      (p/advect vel2 vel vel obstacles 1 0.9999) (canvas-swap! vel vel2)
+      (p/advect den2 vel den obstacles 1 1)   (canvas-swap! den den2)
       (p/divergence divergence vel obstacles)
 
       (p/fill prs 0 0 0 0)
-      (repeat 19
+      ;;(p/splat prs 0.6 0.45 15   0.25 0 0)
+      (repeat 20
               (p/jacobi prs2 prs divergence obstacles)
               (canvas-swap! prs prs2))
 
