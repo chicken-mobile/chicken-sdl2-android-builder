@@ -167,7 +167,7 @@ void main() {
     (proc)
     (cond ((> (- (cm) t) 2000)
            (set! fps (inexact->exact (round (/ n (/ (- (cm) t) 1000)))))
-           (print "fps " fps)
+           (file-write 0 (conc "fps " fps "\n"))
            (set! t (cm))
            (set! n 0)))
     (loop (add1 n) t)))
