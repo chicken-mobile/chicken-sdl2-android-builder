@@ -42,6 +42,11 @@
 ;; ==================== program record ====================
 (define-record program id)
 (define (create-program vertex-shader fragment-shader)
+
+  (define (check-shader shader)
+    (if (zero? shader) (error "problem with shader " shader)
+        shader))
+
   (let* ((vertex-shader (or vertex-shader "
 #version 300 es
 in vec2 position;
@@ -49,12 +54,14 @@ void main(){
    gl_Position = vec4(position, 0.0, 1.0);
 }"))
          (id (gl-utils:make-program
-              (list (if (string? vertex-shader)
-                        (gl-utils:make-shader gl:+vertex-shader+ vertex-shader)
-                        vertex-shader)
-                    (if (string? fragment-shader)
-                        (gl-utils:make-shader gl:+fragment-shader+ fragment-shader)
-                        fragment-shader)))))
+              (list (check-shader
+                     (if (string? vertex-shader)
+                         (gl-utils:make-shader gl:+vertex-shader+ vertex-shader)
+                         vertex-shader))
+                    (check-shader
+                     (if (string? fragment-shader)
+                         (gl-utils:make-shader gl:+fragment-shader+ fragment-shader)
+                         fragment-shader))))))
 
     (set-finalizer! (make-program id)
                     (lambda (p)
