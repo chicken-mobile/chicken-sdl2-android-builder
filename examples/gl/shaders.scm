@@ -17,6 +17,13 @@
                         (gl-utils:->pointer (f32vector r g b   r g b   r g b   r g b))))
   (gl-utils:check-error))
 
+(define (p/rain canvas r g b a #!optional (drops 100))
+  (repeat drops
+          (p/pset canvas
+                  (random (canvas-w canvas))
+                  (random (canvas-h canvas))
+                  r g b a)))
+
 ;; (p/pset den  100 100  1 0 0 0)
 
 ;; (map canvas-tex (list den den2 vel vel2 divergence prs prs2))

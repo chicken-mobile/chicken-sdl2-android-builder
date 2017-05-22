@@ -39,13 +39,6 @@
 ;; (canvas-pixels vel)
 ;; (canvas-pixels divergence)
 
-(define (rain canvas r g b a #!optional (drops 100))
-  (repeat drops
-          (p/pset canvas
-                  (random (canvas-w canvas))
-                  (random (canvas-h canvas))
-                  r g b a)))
-
 ;; (rain den 1 0 0 0)
 
 
