@@ -110,8 +110,8 @@ void main() {
 
          (unless up
            (receive (w h) (sdl2:window-size window)
-             (let ((x (* (canvas-w den) (/ mx w)))
-                   (y (* (canvas-h den) (- 1 (/ my h))))
+             (let ((x (/ mx w))
+                   (y (- 1 (/ my h)))
                    (xx (* 0.2 (+ (sdl2:mouse-motion-event-xrel event)))) ;; r
                    (yy (* 0.2 (- (sdl2:mouse-motion-event-yrel event)))))
                (p/splat vel   x y 15
@@ -130,11 +130,8 @@ void main() {
       (gl:clear-color 0 0 0 0)
       (gl:clear gl:+color-buffer-bit+)
 
-      (p/splat  den
-                (* 0.5 (canvas-w den))
-                (* 0.5 (canvas-h den))
-                20
-                1 0 0)
+      (p/splat  den 0.5 0.5 20 1 0 0)
+
       (p/advect vel2 vel vel 1 0.9999) (canvas-swap! vel vel2)
       (p/advect den2 vel den 1 0.99) (canvas-swap! den den2)
       (p/divergence divergence vel)

@@ -152,7 +152,7 @@ void main() {
         (with-program
          prg
 
-         (gl:uniform2f Point     x y)
+         (gl:uniform2f Point     (* x (canvas-w out)) (* (canvas-h out) y))
          (gl:uniform1f Radius    radius)
          (gl:uniform3f FillColor r g b)
 
