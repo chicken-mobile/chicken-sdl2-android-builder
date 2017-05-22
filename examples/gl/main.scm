@@ -26,7 +26,7 @@
   (define vel2       (create-canvas gridsize gridsize 2))
   (define den        (create-canvas gridsize gridsize 1))
   (define den2       (create-canvas gridsize gridsize 1))
-  (define divergence (create-canvas gridsize gridsize 3))
+  (define divergence (create-canvas gridsize gridsize 1))
   (define prs        (create-canvas gridsize gridsize 1))
   (define prs2       (create-canvas gridsize gridsize 1)))
 
