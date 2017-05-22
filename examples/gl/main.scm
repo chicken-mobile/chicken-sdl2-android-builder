@@ -29,7 +29,10 @@
   (define divergence (create-canvas gridsize gridsize 1))
   (define prs        (create-canvas gridsize gridsize 1))
   (define prs2       (create-canvas gridsize gridsize 1))
-  (define obstacles  (create-canvas gridsize gridsize 3)))
+  (define obstacles  (create-canvas gridsize gridsize 3))
+
+  (p/splat obstacles 0.75 0.38 0.10   1 0 0)
+  (p/splat obstacles 0.75 0.62 0.10   1 0 0))
 
 
 ;; (p/fill vel 0 0 0 0)
@@ -58,22 +61,28 @@ out vec4 FragColor;
 uniform sampler2D DensityTexture;
 uniform sampler2D VelocityTexture;
 uniform sampler2D PressureTexture;
+uniform sampler2D ObstaclesTexture;
 uniform vec2 InverseSize;
 
 void main() {
  vec2 fragCoord = gl_FragCoord.xy;
- vec2  vel     = (vec4(1.0,0.0,0.0,1.0)*texture(VelocityTexture, InverseSize * fragCoord)).xy;
- float density = (vec4(1.0,0.0,0.0,1.0)*texture(DensityTexture, InverseSize * fragCoord)).x;
- float pressure = texture(PressureTexture, InverseSize * fragCoord).x;
- FragColor = vec4(length(vel), 0.5 + 10.0 * pressure, density, 0);
+ vec2  vel     =   (vec4(0.75,0.0,0.0,1.0)*texture(VelocityTexture, InverseSize * fragCoord)).xy;
+ float density =   (vec4(0.25,0.0,0.0,1.0)*texture(DensityTexture, InverseSize * fragCoord)).x;
+ float pressure =  (vec4(1.00,0.0,0.0,1.0)*texture(PressureTexture, InverseSize * fragCoord)).x;
+ float obstacles = (vec4(1.00,0.0,0.0,1.0)*texture(ObstaclesTexture, InverseSize * fragCoord)).x;
+ FragColor = vec4(length(vel), obstacles > 0.0 ? 0.0 : 0.5 + 10.0 * pressure, density, 0);
 }
 "))
     (let-program-locations
-     prg (VelocityTexture DensityTexture PressureTexture InverseSize)
+     prg (VelocityTexture DensityTexture PressureTexture ObstaclesTexture InverseSize)
 
-     (lambda (w h  vel prs den)
+     (lambda (w h  vel prs den obs)
        (with-program
         prg
+
+        (gl:uniform1i ObstaclesTexture 3)
+        (gl:active-texture gl:+texture3+)
+        (gl:bind-texture   gl:+texture-2d+ (canvas-tex obs))
 
         (gl:uniform1i PressureTexture  2)
         (gl:active-texture gl:+texture2+)
@@ -146,7 +155,7 @@ void main() {
 
 
       (receive (w h) (sdl2:window-size window)
-        (visualize w h  vel prs den))
+        (visualize w h  vel prs den obstacles))
       (sdl2:gl-swap-window! window))))
 
 (define (gameloop proc)

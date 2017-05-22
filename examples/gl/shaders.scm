@@ -120,7 +120,7 @@ out vec4 FragColor;
 
 uniform sampler2D VelocityTexture;
 uniform sampler2D SourceTexture;
-//uniform sampler2D Obstacles;
+uniform sampler2D Obstacles;
 
 uniform vec2 InverseSize;
 uniform float TimeStep;
@@ -128,36 +128,39 @@ uniform float Dissipation;
 
 void main() {
     vec2 fragCoord = gl_FragCoord.xy;
-//    float solid = texture(Obstacles, InverseSize * fragCoord).x;
-//    if (solid > 0) {
-//        FragColor = vec4(0);
-//        return;
-//    }
-//
+    float solid = texture(Obstacles, InverseSize * fragCoord).x;
+    if (solid > 0.0) {
+        FragColor = vec4(0);
+        return;
+    }
+
     vec2 u = texture(VelocityTexture, InverseSize * fragCoord).xy;
     vec2 coord = InverseSize * (fragCoord - TimeStep * u);
     FragColor = Dissipation * texture(SourceTexture, coord);
 }
 "))
     (let-program-locations
-     prg (VelocityTexture SourceTexture InverseSize TimeStep Dissipation)
+     prg (VelocityTexture SourceTexture Obstacles InverseSize TimeStep Dissipation)
 
-     (lambda (out  velocity source timestep dissipation)
+     (lambda (out  velocity source obstacles timestep dissipation)
        (assert (= 2 (canvas-d velocity)))
        (with-output-to-canvas
         out
         (with-program
          prg
 
-         (gl:uniform1i VelocityTexture 0)
-         (gl:active-texture gl:+texture0+)
-         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
+         (gl:uniform1i Obstacles 2)
+         (gl:active-texture gl:+texture2+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
 
          (gl:uniform1i SourceTexture   1)
          (gl:active-texture gl:+texture1+)
          (gl:bind-texture   gl:+texture-2d+ (canvas-tex source))
 
+         
+         (gl:uniform1i VelocityTexture 0)
          (gl:active-texture gl:+texture0+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
 
          (gl:uniform2f InverseSize     (/ 1 (canvas-w out)) (/ 1 (canvas-h out)))
          (gl:uniform1f TimeStep timestep)
