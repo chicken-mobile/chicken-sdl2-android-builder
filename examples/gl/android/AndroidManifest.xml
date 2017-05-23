@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-      package="org.chicken.demo.fluid.rainbow"
+      package="org.chicken.demo.fluid.flow"
       android:versionCode="1"
       android:versionName="1.0"
       android:installLocation="auto">
@@ -17,7 +17,7 @@
                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
                  android:hardwareAccelerated="true" >
         <activity android:name="org.libsdl.app.SDLActivity"
-                  android:label="Rainbow Fluid"
+                  android:label="Water Fluid"
                   android:configChanges="keyboardHidden|orientation"
                   >
             <intent-filter>
