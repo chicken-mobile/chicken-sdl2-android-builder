@@ -372,3 +372,95 @@ void main() {
 
          (render-square)))))))
 
+
+
+
+
+
+;; ==================== lin_solve from Jos Stam's famout paper ====================
+
+(define p/lin_solve
+  (let ()
+
+    (define prg (create-program #f "
+#version 300 es
+precision mediump float;
+
+out vec4 FragColor;
+
+uniform sampler2D Source0;
+uniform sampler2D Out;
+
+uniform float Alpha;
+uniform float InverseBeta;
+uniform ivec2 Edge;
+
+void main() {
+    ivec2 T = ivec2(gl_FragCoord.xy);
+
+    // Find neighboring pressure:
+    vec4 pN = texelFetchOffset(Out, T, 0, ivec2(0, 1));
+    vec4 pS = texelFetchOffset(Out, T, 0, ivec2(0, -1));
+    vec4 pE = texelFetchOffset(Out, T, 0, ivec2(1, 0));
+    vec4 pW = texelFetchOffset(Out, T, 0, ivec2(-1, 0));
+
+    vec4 s0;
+    // TODO: handle corner-cases (literally)
+    if(T.x == 0)           { s0 = texelFetchOffset(Source0, T, 0, ivec2(1,0)); }
+    else if(T.y == 0)      { s0 = texelFetchOffset(Source0, T, 0, ivec2(0,1)); }
+    else if(T.x >= Edge.x) { s0 = texelFetchOffset(Source0, T, 0, ivec2(-1,0)); }
+    else if(T.y >= Edge.y) { s0 = texelFetchOffset(Source0, T, 0, ivec2(0,-1)); }
+    else { s0 = texelFetch(Source0, T, 0); }
+
+    FragColor = (s0 + Alpha * (pN + pS + pE + pW)) * InverseBeta;
+}
+"))
+
+    (define CellSize 1.25)
+    (define wrk #f) ;; temporary worker surface since we can't write to our uniform texture
+
+    (let-program-locations
+     prg (Source0 Out Alpha Edge InverseBeta)
+
+     (lambda (out source0 alpha inverse-beta)
+
+
+       (unless (and (canvas? wrk)
+                    (= (canvas-h wrk) (canvas-h out))
+                    (= (canvas-w wrk) (canvas-w out))
+                    (= (canvas-d wrk) (canvas-d out)))
+         (print "obs: p/lin_solve creating new temporary surface")
+         (set! wrk (create-canvas (canvas-w out)
+                                  (canvas-h out)
+                                  (canvas-d out))))
+       ;;(print "start wrk " wrk " " out)
+       (p/fill wrk 0 0 0 0)
+
+       (with-program
+        prg
+        (repeat
+         10 ;; must be even since we're swapping. must leak our wrk!
+         (with-output-to-canvas
+          out
+
+          (gl:uniform1i Out 1)
+          (gl:active-texture gl:+texture1+)
+          (gl:bind-texture   gl:+texture-2d+ (canvas-tex wrk))
+
+          (gl:uniform1i Source0 0)
+          (gl:active-texture gl:+texture0+)
+          (gl:bind-texture   gl:+texture-2d+ (canvas-tex source0))
+
+          (gl:uniform1f Alpha alpha)
+          (gl:uniform1f InverseBeta inverse-beta)
+          (gl:uniform2i Edge (- (canvas-w source0) 1) (- (canvas-h source0) 1))
+
+          (render-square))
+         (canvas-swap! out wrk)))))))
+
+
+(define (p/diffuse out source diff dt)
+  (let ((alpha (* dt diff (canvas-w out) (canvas-h out))))
+    (p/lin_solve out source alpha (/ (+ 1 (* 4 alpha))))))
+
+

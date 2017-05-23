@@ -21,25 +21,24 @@
 
 
 (begin
-  (define gridsize 512)
-  (define vel        (create-canvas gridsize gridsize 2))
-  (define vel2       (create-canvas gridsize gridsize 2))
-  (define den        (create-canvas gridsize gridsize 1))
-  (define den2       (create-canvas gridsize gridsize 1))
-  (define divergence (create-canvas gridsize gridsize 1))
-  (define prs        (create-canvas gridsize gridsize 1))
-  (define prs2       (create-canvas gridsize gridsize 1))
-  (define obstacles  (create-canvas gridsize gridsize 3))
+  (define gridsize 64)
+  (define vel        (create-canvas gridsize gridsize 2)) (gc #t)
+  (define vel2       (create-canvas gridsize gridsize 2)) (gc #t)
+  (define den        (create-canvas gridsize gridsize 1)) (gc #t)
+  (define den2       (create-canvas gridsize gridsize 1)) (gc #t)
+  (define divergence (create-canvas gridsize gridsize 1)) (gc #t)
+  (define prs        (create-canvas gridsize gridsize 1)) (gc #t)
+  (define prs2       (create-canvas gridsize gridsize 1)) (gc #t)
+  (define obstacles  (create-canvas gridsize gridsize 3)) (gc #t)
 
   (p/splat obstacles 0.75 0.38 0.10   1 0 0)
   (p/splat obstacles 0.75 0.62 0.10   1 0 0))
 
-
-;; (p/fill vel 0 0 0 0)
-;; (p/fill den 0 0 0 0)
+(define (reset!)
+  (p/fill den  0 0 0 0)
+  (p/fill den2 0 0 0 0))
 
 ;; (canvas-pixels den)
-;; (canvas-pixels den2)
 ;; (canvas-pixels vel)
 ;; (canvas-pixels divergence)
 
@@ -67,10 +66,10 @@ uniform vec2 InverseSize;
 void main() {
  vec2 fragCoord = gl_FragCoord.xy;
  vec2  vel     =   (vec4(0.75,0.0,0.0,1.0)*texture(VelocityTexture, InverseSize * fragCoord)).xy;
- float density =   (vec4(0.25,0.0,0.0,1.0)*texture(DensityTexture, InverseSize * fragCoord)).x;
- float pressure =  (vec4(1.00,0.0,0.0,1.0)*texture(PressureTexture, InverseSize * fragCoord)).x;
- float obstacles = (vec4(1.00,0.0,0.0,1.0)*texture(ObstaclesTexture, InverseSize * fragCoord)).x;
- FragColor = vec4(length(vel), obstacles > 0.0 ? 0.0 : 0.5 + 10.0 * pressure, density, 0);
+ float density =   (vec4(1.00,0.0,0.0,1.0)*texture(DensityTexture, InverseSize * fragCoord)).x;
+ float pressure =  (vec4(0.00,0.0,0.0,1.0)*texture(PressureTexture, InverseSize * fragCoord)).x;
+ float obstacles = (vec4(0.00,0.0,0.0,1.0)*texture(ObstaclesTexture, InverseSize * fragCoord)).x;
+ FragColor = vec4(length(vel)+density, obstacles > 0.0 ? 0.0 : density+pressure, density, 0);
 }
 "))
     (let-program-locations
@@ -112,7 +111,9 @@ void main() {
          (print "handling key" event)
          (when (eq? 'menu (sdl2:keyboard-event-sym event))
            (p/fill den 0 0 0 0)
-           (p/fill vel 0 0 0 0)))
+           (p/fill vel 0 0 0 0))
+         (when (eq? 'c (sdl2:keyboard-event-sym event))
+           (reset!)))
         ((mouse-motion)
          ;;(print "handling mouse-motion event: " event)
          (define mx (sdl2:mouse-motion-event-x event))
@@ -126,7 +127,10 @@ void main() {
                    (yy (* 0.2 (- (sdl2:mouse-motion-event-yrel event)))))
                (if (member 'right (sdl2:mouse-motion-event-state event))
                    (p/splat obstacles x y 0.01   0 0 0)
-                   (p/splat obstacles x y 0.01   1 0 0)))))
+                   ;;(p/splat obstacles x y 0.01   1 0 0)
+                   (begin
+                     (set! frames 0)
+                     (p/splat den x y  0.01   100 0 0))))))
          (set! up (null? (sdl2:mouse-motion-event-state event))))
         ((mouse-button-up) (set! up #t))
         (else (print "unhandled " event))))))
@@ -140,8 +144,8 @@ void main() {
       (gl:clear-color 0 0 0 0)
       (gl:clear gl:+color-buffer-bit+)
 
-      (p/splat  den 0.5  0.5 0.05       1000.0 0 0)
-      (unless (sdl2:scancode-pressed? 'lshift)
+      ;;(p/splat  den 0.5  0.5 0.05       1000.0 0 0)
+      (unless #t (sdl2:scancode-pressed? 'lshift)
         (p/splat  vel 0.25 0.5 0.01       2.0 0 0))
 
       (p/advect vel2 vel vel obstacles 1 0.9999) (canvas-swap! vel vel2)
@@ -161,10 +165,32 @@ void main() {
         (visualize w h  vel prs den obstacles))
       (sdl2:gl-swap-window! window))))
 
+
+(define frames 0)
+(define core-iteration
+  (let ((event (sdl2:make-event)))
+    (lambda ()
+      (while* (sdl2:poll-event! event) (handle it))
+
+      (set! frames (add1 frames))
+
+      (gl:clear-color 0 0 0 0)
+      (gl:clear gl:+color-buffer-bit+)
+
+      (p/diffuse den2 den 0.0001 0.1) (canvas-swap! den den2)
+
+      (receive (w h) (sdl2:window-size window)
+        (visualize w h  vel prs den obstacles))
+      (sdl2:gl-swap-window! window))))
+
+(define MUTEX (make-mutex))
 (define (gameloop proc)
   (define cm current-milliseconds)
   (let loop ((n 0) (t (cm)))
-    (proc)
+    (dynamic-wind
+      (lambda () (mutex-lock! MUTEX))
+      proc
+      (lambda () (mutex-unlock! MUTEX)))
     (cond ((> (- (cm) t) 2000)
            (set! fps (inexact->exact (round (/ n (/ (- (cm) t) 1000)))))
            (file-write 0 (conc "fps " fps "\n"))
@@ -177,12 +203,17 @@ void main() {
 
 ;; repl-friendly game-loop with fps counter
 (define fps 0) ;; <-- access from your repl
+
 (begin (handle-exceptions e void (thread-terminate! game-thread))
        (define game-thread ;; (thread-state game-thread)
          (thread-start!
           (lambda ()
-            (gameloop (lambda ()
-                        (core-iteration)
-                        (thread-yield!)))))))
+            (handle-exceptions
+             e (raise e)
+             (gameloop (lambda ()
+                         (core-iteration)
+                         (thread-yield!)
+                         (thread-sleep! 0.01))))))))
 
 
+(include "repl.scm")
