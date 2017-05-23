@@ -115,7 +115,8 @@ void main(){
   (let ((t (canvas-tex b))) (canvas-tex-set! b (canvas-tex a)) (canvas-tex-set! a t))
   (let ((t (canvas-fb  b))) (canvas-fb-set!  b (canvas-fb  a)) (canvas-fb-set!  a t))
   (let ((t (canvas-w   b))) (canvas-w-set!   b (canvas-w   a)) (canvas-w-set!   a t))
-  (let ((t (canvas-h   b))) (canvas-h-set!   b (canvas-h   a)) (canvas-h-set!   a t)))
+  (let ((t (canvas-h   b))) (canvas-h-set!   b (canvas-h   a)) (canvas-h-set!   a t))
+  (let ((t (canvas-d   b))) (canvas-d-set!   b (canvas-d   a)) (canvas-d-set!   a t)))
 
 
 (define (canvas-pixels canvas)
