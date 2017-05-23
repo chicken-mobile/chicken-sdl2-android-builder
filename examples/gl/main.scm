@@ -21,7 +21,7 @@
 
 
 (begin
-  (define gridsize 64)
+  (define gridsize 256)
   (define vel        (create-canvas gridsize gridsize 2)) (gc #t)
   (define vel2       (create-canvas gridsize gridsize 2)) (gc #t)
   (define den        (create-canvas gridsize gridsize 1)) (gc #t)
@@ -31,12 +31,13 @@
   (define prs2       (create-canvas gridsize gridsize 1)) (gc #t)
   (define obstacles  (create-canvas gridsize gridsize 3)) (gc #t)
 
-  (p/splat obstacles 0.75 0.38 0.10   1 0 0)
-  (p/splat obstacles 0.75 0.62 0.10   1 0 0))
+  ;; (p/splat obstacles 0.75 0.38 0.10   1 0 0)
+  ;; (p/splat obstacles 0.75 0.62 0.10   1 0 0)
+  )
 
 (define (reset!)
-  (p/fill den  0 0 0 0)
-  (p/fill den2 0 0 0 0))
+  (for-each (lambda (canvas) (p/fill canvas  0 0 0 0))
+            (list vel vel2 den den2 prs prs2)))
 
 ;; (canvas-pixels den)
 ;; (canvas-pixels vel)
@@ -65,11 +66,11 @@ uniform vec2 InverseSize;
 
 void main() {
  vec2 fragCoord = gl_FragCoord.xy;
- vec2  vel     =   (vec4(0.75,0.0,0.0,1.0)*texture(VelocityTexture, InverseSize * fragCoord)).xy;
- float density =   (vec4(1.00,0.0,0.0,1.0)*texture(DensityTexture, InverseSize * fragCoord)).x;
- float pressure =  (vec4(0.00,0.0,0.0,1.0)*texture(PressureTexture, InverseSize * fragCoord)).x;
- float obstacles = (vec4(0.00,0.0,0.0,1.0)*texture(ObstaclesTexture, InverseSize * fragCoord)).x;
- FragColor = vec4(length(vel)+density, obstacles > 0.0 ? 0.0 : density+pressure, density, 0);
+ vec2  vel     =   (vec4(0.10,0.10,0.0,1.0)*texture(VelocityTexture, InverseSize * fragCoord)).xy;
+ float density =   (vec4(1.00,0.00,0.0,1.0)*texture(DensityTexture, InverseSize * fragCoord)).x;
+ float pressure =  (vec4(0.25,0.00,0.0,1.0)*texture(PressureTexture, InverseSize * fragCoord)).x;
+ float obstacles = (vec4(0.25,0.00,0.0,1.0)*texture(ObstaclesTexture, InverseSize * fragCoord)).x;
+ FragColor = vec4(length(vel), obstacles>0.0?0.0: 0.5+10.0*pressure, density , 0);
 }
 "))
     (let-program-locations
@@ -123,47 +124,42 @@ void main() {
            (receive (w h) (sdl2:window-size window)
              (let ((x (/ mx w))
                    (y (- 1 (/ my h)))
-                   (xx (* 0.2 (+ (sdl2:mouse-motion-event-xrel event)))) ;; r
-                   (yy (* 0.2 (- (sdl2:mouse-motion-event-yrel event)))))
-               (if (member 'right (sdl2:mouse-motion-event-state event))
-                   (p/splat obstacles x y 0.01   0 0 0)
-                   ;;(p/splat obstacles x y 0.01   1 0 0)
-                   (begin
-                     (set! frames 0)
-                     (p/splat den x y  0.01   100 0 0))))))
+                   (xx (* 2 (+ (sdl2:mouse-motion-event-xrel event)))) ;; r
+                   (yy (* 2 (- (sdl2:mouse-motion-event-yrel event)))))
+               (case (car (sdl2:mouse-motion-event-state event))
+                 ((middle) (p/splat+ den x y 0.01  500 0 0)) ;; add "water"
+                 ((right) (if (sdl2:scancode-pressed? 'lshift)
+                              (p/splat obstacles x y 0.01   0 0 0)
+                              (p/splat obstacles x y 0.01   1 0 0)))
+                 ((left) (p/splat+ vel x y 0.01   xx yy 0))))))
          (set! up (null? (sdl2:mouse-motion-event-state event))))
         ((mouse-button-up) (set! up #t))
         (else (print "unhandled " event))))))
 
 
-(define core-iteration
-  (let ((event (sdl2:make-event)))
-    (lambda ()
-      (while* (sdl2:poll-event! event) (handle it))
-
-      (gl:clear-color 0 0 0 0)
-      (gl:clear gl:+color-buffer-bit+)
-
-      ;;(p/splat  den 0.5  0.5 0.05       1000.0 0 0)
-      (unless #t (sdl2:scancode-pressed? 'lshift)
-        (p/splat  vel 0.25 0.5 0.01       2.0 0 0))
-
-      (p/advect vel2 vel vel obstacles 1 0.9999) (canvas-swap! vel vel2)
-      (p/advect den2 vel den obstacles 1 1)   (canvas-swap! den den2)
-      (p/divergence divergence vel obstacles)
-
-      (p/fill prs 0 0 0 0)
-      ;;(p/splat prs 0.6 0.45 15   0.25 0 0)
-      (repeat 20
-              (p/jacobi prs2 prs divergence obstacles)
-              (canvas-swap! prs prs2))
-
-      (p/subtract-gradient vel2 vel prs obstacles) (canvas-swap! vel vel2)
-
-
-      (receive (w h) (sdl2:window-size window)
-        (visualize w h  vel prs den obstacles))
-      (sdl2:gl-swap-window! window))))
+;; (define core-iteration
+;;   (let ((event (sdl2:make-event)))
+;;     (lambda ()
+;;       (while* (sdl2:poll-event! event) (handle it))
+;;       (gl:clear-color 0 0 0 0)
+;;       (gl:clear gl:+color-buffer-bit+)
+;;       ;;(p/splat  den 0.5  0.5 0.05       1000.0 0 0)
+;;       (unless (sdl2:scancode-pressed? 'space)
+;;         (p/splat+  vel 0.25 0.5 0.01       .8 0 0))
+;;       (p/diffuse vel2 vel 0.0001 0.001)       (canvas-swap! vel vel2)
+;;       (p/advect  vel2 vel vel obstacles 0.5 1) (canvas-swap! vel vel2)
+;;       (p/diffuse den2 den 0.0001 0.1)          (canvas-swap! den den2)
+;;       (p/advect  den2 vel den obstacles 0.5 1) (canvas-swap! den den2)
+;;       (p/divergence divergence vel obstacles)
+;;       (p/fill prs 0 0 0 0)
+;;       (repeat 300
+;;               (p/jacobi prs2 prs divergence obstacles)
+;;               (canvas-swap! prs prs2))
+;;       ;;(p/diffuse prs2 prs 0.0001 0.1 6) (canvas-swap! prs prs2)
+;;       (p/subtract-gradient vel2 vel prs obstacles (/ 1.125 1.5)) (canvas-swap! vel vel2)
+;;       (receive (w h) (sdl2:window-size window)
+;;         (visualize w h  vel prs den obstacles))
+;;       (sdl2:gl-swap-window! window))))
 
 
 (define frames 0)
@@ -171,13 +167,21 @@ void main() {
   (let ((event (sdl2:make-event)))
     (lambda ()
       (while* (sdl2:poll-event! event) (handle it))
-
       (set! frames (add1 frames))
 
-      (gl:clear-color 0 0 0 0)
-      (gl:clear gl:+color-buffer-bit+)
+      ;; ==================== density step ====================
+      ;;(p/fill vel 0 0 0 0)
+      (p/splat vel 0.25 0.5 0.01   30 0 0)
+      (p/diffuse den2 den obstacles 0.00001 0.1 20) (canvas-swap! den den2)
+      (p/advect den2 vel den obstacles 0.1 1) (canvas-swap! den den2)
 
-      (p/diffuse den2 den 0.0001 0.1) (canvas-swap! den den2)
+      ;; ==================== velocity step ====================
+      (and-let* ((viscocity #f))
+        (p/diffuse vel2 vel obstacles viscocity 0.1 30) (canvas-swap! vel vel2))
+
+      (p/project vel2 prs divergence vel obstacles 40) (canvas-swap! vel vel2)
+      (p/advect  vel2 vel vel obstacles 0.1 1) (canvas-swap! vel vel2)
+      (p/project vel2 prs divergence vel obstacles 40) (canvas-swap! vel vel2)
 
       (receive (w h) (sdl2:window-size window)
         (visualize w h  vel prs den obstacles))

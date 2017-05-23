@@ -68,8 +68,53 @@ void main() {
          (gl:uniform3f FillColor r g b)
 
          (gl:enable gl:+blend+)
-         ;;(gl:blend-func gl:+one+ gl:+one+)
          (gl:blend-func gl:+one+ gl:+one-minus-src-alpha+)
+         ;; gl:+one-minus-src-alpha+ wont work on my fairphone2! why!?
+         (render-square)
+         (gl:disable gl:+blend+)))))))
+
+
+(define p/splat+
+  (let ()
+    (define prg
+      (create-program
+       #f "
+#version 300 es
+precision mediump float;
+
+out vec4 FragColor;
+
+uniform vec2 Point;
+uniform float Radius;
+uniform vec3 FillColor;
+
+void main() {
+    float d = distance(Point, gl_FragCoord.xy);
+    if (d < Radius) {
+        float a = (Radius - d) * 0.5;
+        a = (d/Radius);//min(a, 1.0);
+        FragColor = vec4(FillColor, 1.0);
+    } else {
+        FragColor = vec4(0);
+    }
+}
+"))
+    (let-program-locations
+     prg (Point Radius FillColor)
+
+     (lambda (out  x y radius  r g b)
+       (with-output-to-canvas
+        out
+        (with-program
+         prg
+
+         (gl:uniform2f Point     (* x (canvas-w out)) (* (canvas-h out) y))
+         (gl:uniform1f Radius    (* radius (canvas-h out)))
+         (gl:uniform3f FillColor r g b)
+
+         (gl:enable gl:+blend+)
+         (gl:blend-func gl:+one+ gl:+one+)
+         ;;(gl:blend-func gl:+one+ gl:+one-minus-src-alpha+)
          ;; gl:+one-minus-src-alpha+ wont work on my fairphone2! why!?
          (render-square)
          (gl:disable gl:+blend+)))))))
@@ -208,7 +253,7 @@ void main() {
     (let-program-locations
      prg (Velocity Obstacles HalfInverseCellSize)
 
-     (lambda (out velocity obstacles)
+     (lambda (out velocity obstacles #!optional (half-inverse-size (/ 0.5 1.25)))
 
        (with-output-to-canvas
         out
@@ -223,7 +268,7 @@ void main() {
          (gl:active-texture gl:+texture0+)
          (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
 
-         (gl:uniform1f HalfInverseCellSize (/ 0.5 1.25))
+         (gl:uniform1f HalfInverseCellSize half-inverse-size)
          (render-square)))))))
 
 (define p/jacobi
@@ -345,16 +390,16 @@ void main() {
 }
 "))
 
+    (define CellSize 1.25)
+
     (let-program-locations
      prg (Velocity Pressure Obstacles GradientScale)
 
-     (lambda (out velocity pressure obstacles)
+     (lambda (out velocity pressure obstacles #!optional (gradient-scale (/ 1.125 CellSize)))
        (with-output-to-canvas
         out
         (with-program
          prg
-
-         (define CellSize 1.25)
 
          (gl:uniform1i Obstacles 2)
          (gl:active-texture gl:+texture2+)
@@ -368,7 +413,7 @@ void main() {
          (gl:active-texture gl:+texture0+)
          (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
 
-         (gl:uniform1f GradientScale (/ 1.125 CellSize))
+         (gl:uniform1f GradientScale gradient-scale)
 
          (render-square)))))))
 
@@ -388,8 +433,9 @@ precision mediump float;
 
 out vec4 FragColor;
 
-uniform sampler2D Source0;
 uniform sampler2D Out;
+uniform sampler2D Source0;
+uniform sampler2D Obstacles;
 
 uniform float Alpha;
 uniform float InverseBeta;
@@ -403,8 +449,22 @@ void main() {
     vec4 pS = texelFetchOffset(Out, T, 0, ivec2(0, -1));
     vec4 pE = texelFetchOffset(Out, T, 0, ivec2(1, 0));
     vec4 pW = texelFetchOffset(Out, T, 0, ivec2(-1, 0));
+    vec4 pC = texelFetch(Out, T, 0);
+
+
+    // Find neighboring obstacles:
+    vec4 oN = texelFetchOffset(Obstacles, T, 0, ivec2(0, 1));
+    vec4 oS = texelFetchOffset(Obstacles, T, 0, ivec2(0, -1));
+    vec4 oE = texelFetchOffset(Obstacles, T, 0, ivec2(1, 0));
+    vec4 oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1, 0));
 
     vec4 s0;
+
+    if(oN.x > 0.0) pN = pC;
+    if(oS.x > 0.0) pS = pC;
+    if(oE.x > 0.0) pE = pC;
+    if(oW.x > 0.0) pW = pC;
+
     // TODO: handle corner-cases (literally)
     if(T.x == 0)           { s0 = texelFetchOffset(Source0, T, 0, ivec2(1,0)); }
     else if(T.y == 0)      { s0 = texelFetchOffset(Source0, T, 0, ivec2(0,1)); }
@@ -420,15 +480,16 @@ void main() {
     (define wrk #f) ;; temporary worker surface since we can't write to our uniform texture
 
     (let-program-locations
-     prg (Source0 Out Alpha Edge InverseBeta)
+     prg (Out Source0 Obstacles Alpha Edge InverseBeta)
 
-     (lambda (out source0 alpha inverse-beta)
+     (lambda (out source0 obstacles alpha beta iterations)
 
+       (define out-fb (canvas-fb out))
 
        (unless (and (canvas? wrk)
-                    (= (canvas-h wrk) (canvas-h out))
-                    (= (canvas-w wrk) (canvas-w out))
-                    (= (canvas-d wrk) (canvas-d out)))
+                    (=  (canvas-h wrk) (canvas-h out))
+                    (=  (canvas-w wrk) (canvas-w out))
+                    (>= (canvas-d wrk) (canvas-d out)))
          (print "obs: p/lin_solve creating new temporary surface")
          (set! wrk (create-canvas (canvas-w out)
                                   (canvas-h out)
@@ -439,9 +500,13 @@ void main() {
        (with-program
         prg
         (repeat
-         10 ;; must be even since we're swapping. must leak our wrk!
+         iterations ;; must be even since we're swapping. must leak our wrk!
          (with-output-to-canvas
           out
+
+          (gl:uniform1i Obstacles 2)
+          (gl:active-texture gl:+texture2+)
+          (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
 
           (gl:uniform1i Out 1)
           (gl:active-texture gl:+texture1+)
@@ -452,15 +517,27 @@ void main() {
           (gl:bind-texture   gl:+texture-2d+ (canvas-tex source0))
 
           (gl:uniform1f Alpha alpha)
-          (gl:uniform1f InverseBeta inverse-beta)
+          (gl:uniform1f InverseBeta (/ beta))
           (gl:uniform2i Edge (- (canvas-w source0) 1) (- (canvas-h source0) 1))
 
           (render-square))
-         (canvas-swap! out wrk)))))))
+         (canvas-swap! out wrk)))
+
+       (if (not (= out-fb (canvas-fb out)))
+           (error "out has been swapped, use even number of iterations"))))))
 
 
-(define (p/diffuse out source diff dt)
+(define (p/diffuse out source obstacles diff dt #!optional (iterations 30))
   (let ((alpha (* dt diff (canvas-w out) (canvas-h out))))
-    (p/lin_solve out source alpha (/ (+ 1 (* 4 alpha))))))
+    (p/lin_solve out source obstacles alpha (+ 1 (* 4 alpha)) iterations)))
+
+;; out is new velocity
+(define (p/project out tmp_prs tmp_divergence vel obstacles iterations)
+
+  (p/divergence tmp_divergence vel obstacles (/ -0.5 (canvas-h tmp_divergence)))
+  (p/fill tmp_prs 0 0 0 0)
+  ;;                              alpha beta
+  (p/lin_solve tmp_prs tmp_divergence obstacles 1 4 iterations)
+  (p/subtract-gradient out vel tmp_prs obstacles (* (canvas-h tmp_divergence) 0.5)))
 
 
