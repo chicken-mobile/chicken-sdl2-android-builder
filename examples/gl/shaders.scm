@@ -212,6 +212,116 @@ void main() {
          (gl:uniform1f Dissipation dissipation)
          (render-square)))))))
 
+;; this one was really hard to write. the idea is that we always
+;; subtract the same amount from one place as we add to another. this
+;; has a big limitation: velocities will be capped at 1 (transfer only
+;; between neightbours).
+(define p/advect-conserving
+  (let ()
+    (define prg
+      (create-program
+       #f
+       "
+#version 300 es
+precision mediump float;
+
+out vec4 FragColor;
+
+uniform sampler2D VelocityTexture;
+uniform sampler2D SourceTexture;
+uniform sampler2D Obstacles;
+
+uniform vec2 InverseSize;
+uniform float TimeStep;
+uniform float Dissipation;
+
+// scale [x,y] such that x+y = 1.0 unless length(v) < 1.0
+vec2 ratio(vec2 v) {
+  float s = abs(v.x) + abs(v.y);
+  if(s <= 0.01) return vec2(0);
+  return vec2(v.x / s, v.y / s);
+}
+
+void main() {
+    ivec2 T = ivec2(gl_FragCoord.xy);
+
+    // calculate how much I will remove from my neighbours and add that to my value
+    // calculate how much my neighbouard will take from me and subtract that.
+
+    // where are my neighbouard moving to
+    vec2 velN=texelFetchOffset(VelocityTexture, T,0,ivec2( 0, +1)).xy; //velN = normalize(velN);
+    vec2 velS=texelFetchOffset(VelocityTexture, T,0,ivec2( 0, -1)).xy; //velS = normalize(velS);
+    vec2 velE=texelFetchOffset(VelocityTexture, T,0,ivec2(+1,  0)).xy; //velE = normalize(velE);
+    vec2 velW=texelFetchOffset(VelocityTexture, T,0,ivec2(-1,  0)).xy; //velW = normalize(velW);
+
+    // what do they carry with them
+    vec4 pN = texelFetchOffset(SourceTexture, T, 0, ivec2( 0, +1));
+    vec4 pS = texelFetchOffset(SourceTexture, T, 0, ivec2( 0, -1));
+    vec4 pE = texelFetchOffset(SourceTexture, T, 0, ivec2(+1,  0));
+    vec4 pW = texelFetchOffset(SourceTexture, T, 0, ivec2(-1,  0));
+
+    pN = max(pN, 0.0);
+    pS = max(pS, 0.0);
+    pE = max(pE, 0.0);
+    pW = max(pW, 0.0);
+
+
+    velN = ratio(velN);
+    velS = ratio(velS);
+    velE = ratio(velE);
+    velW = ratio(velW);
+
+    // find out what our neighbours give to us
+    vec4 taking = vec4(0.0, 0.0, 0.0, 0.0);
+    if(velN.y < 0.0) taking += pN * -velN.y;
+    if(velS.y > 0.0) taking += pS *  velS.y;
+    if(velE.x < 0.0) taking += pE * -velE.x;
+    if(velW.x > 0.0) taking += pW *  velW.x;
+
+    // find out what we give to our neighbours
+    vec2 velocity = texelFetch(VelocityTexture, T, 0).xy;
+ //    velocity = normalize(velocity);
+    velocity = ratio(velocity);
+    vec4 amount   = texelFetch(SourceTexture, T, 0);
+    amount = max(amount, 0.0);
+
+    vec4 giving = vec4(0.0, 0.0, 0.0, 0.0);
+    if(velocity.y > 0.0) giving += amount *  velocity.y;
+    if(velocity.y < 0.0) giving += amount * -velocity.y;
+    if(velocity.x > 0.0) giving += amount *  velocity.x;
+    if(velocity.x < 0.0) giving += amount * -velocity.x;
+
+    FragColor = amount + (taking - giving);
+}
+"))
+    (let-program-locations
+     prg (VelocityTexture SourceTexture #| Obstacles |# #| InverseSize |# #| TimeStep |#)
+
+     (lambda (out velocity source timestep)
+       (assert (= 2 (canvas-d velocity)))
+       (with-output-to-canvas
+        out
+        (with-program
+         prg
+
+         ;; (gl:uniform1i Obstacles 2)
+         ;; (gl:active-texture gl:+texture2+)
+         ;; (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
+
+         (gl:uniform1i SourceTexture   1)
+         (gl:active-texture gl:+texture1+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex source))
+
+         
+         (gl:uniform1i VelocityTexture 0)
+         (gl:active-texture gl:+texture0+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
+
+         ;;(gl:uniform2f InverseSize     (/ 1 (canvas-w out)) (/ 1 (canvas-h out)))
+         ;;(gl:uniform1f TimeStep timestep)
+         ;;(gl:uniform1f Dissipation dissipation)
+         (render-square)))))))
+
 
 (define p/divergence
   (let ()
