@@ -238,7 +238,7 @@ uniform float Dissipation;
 // scale [x,y] such that x+y = 1.0 unless length(v) < 1.0
 vec2 ratio(vec2 v) {
   float s = abs(v.x) + abs(v.y);
-  if(s <= 0.01) return vec2(0);
+  if(s == 0.0) return vec2(0);
   return vec2(v.x / s, v.y / s);
 }
 
