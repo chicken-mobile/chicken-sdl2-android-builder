@@ -78,7 +78,7 @@ void main(){
     (display (conc (canvas-w x) "x" (canvas-h x) "x" (canvas-d x)) p)
     (display ">" p)))
 
-(define (create-canvas w h dimensions)
+(define (create-canvas w h dimensions #!optional (pixels #f))
 
   (let ((tex (gl-utils:gen-texture))
         (fbo (gl-utils:gen-framebuffer)))
@@ -87,11 +87,17 @@ void main(){
 
     (with-texture
      tex
-     (case dimensions
-       ((1) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+r16f+    w h 0 gl:+red+  gl:+float+ #f))
-       ((2) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rg16f+   w h 0 gl:+rg+   gl:+float+ #f))
-       ((3) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rgb16f+  w h 0 gl:+rgb+  gl:+float+ #f))
-       ((4) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rgba16f+ w h 0 gl:+rgba+ gl:+float+ #f))))
+     (if #f
+         (case dimensions
+           ((1) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+r16f+    w h 0 gl:+red+  gl:+float+ pixels))
+           ((2) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rg16f+   w h 0 gl:+rg+   gl:+float+ pixels))
+           ((3) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rgb16f+  w h 0 gl:+rgb+  gl:+float+ pixels))
+           ((4) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rgba16f+ w h 0 gl:+rgba+ gl:+float+ pixels)))
+         (case dimensions
+           ((1) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+r32f+    w h 0 gl:+red+  gl:+float+ pixels))
+           ((2) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rg32f+   w h 0 gl:+rg+   gl:+float+ pixels))
+           ((3) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rgb32f+  w h 0 gl:+rgb+  gl:+float+ pixels))
+           ((4) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rgba32f+ w h 0 gl:+rgba+ gl:+float+ pixels)))))
 
     (gl:bind-framebuffer gl:+framebuffer+ fbo)
     (gl:framebuffer-texture-2d gl:+framebuffer+ gl:+color-attachment0+
