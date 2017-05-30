@@ -30,9 +30,9 @@
     ((_ src (var rest ...) body ...)
      (let ((prg (if (string? src) (create-program #f src) src)))
        (let ((var (gl:get-uniform-location (program-id prg) (symbol->string (quote var)))))
-         (if (< var 0)
-             (error "invalid location" (quote var) var)
-             (let-program-locations prg (rest ...) body ...)))))
+         (when (< var 0)
+             (warning "invalid location" (quote var) var))
+         (let-program-locations prg (rest ...) body ...))))
     ((_ src () body ...)
      (begin body ...))))
 
