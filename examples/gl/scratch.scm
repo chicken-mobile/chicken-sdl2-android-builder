@@ -1,4 +1,32 @@
 
+
+
+(define (core-iteration)
+  (define dt 0.25)
+  ;;(define old (f32vector-sum (canvas-pixels den)))
+  ;;
+
+  ;;(p/+ prs den 0)
+  (p/advect-conserving den2 vel den obstacles dt) (canvas-swap! den den2)
+
+  ;;(p/project vel2 prs divergence vel obstacles 8) (canvas-swap! vel vel2)
+  ;;(p/advect den2 vel den obstacles 0.1 1) (canvas-swap! den den2)
+  ;;(p/project vel2 prs divergence vel obstacles 8) (canvas-swap! vel vel2)
+  (p/subtract-gradient vel2 vel den obstacles 0.25) (canvas-swap! vel vel2)
+
+  (p/advect-conserving vel2 vel vel obstacles dt 1) (canvas-swap! vel vel2)
+  ;;(p/advect vel2 vel vel obstacles 0.1 1) (canvas-swap! vel vel2)
+
+  ;;(p/diffuse den2 den obstacles 0.0001 0.01 20) (canvas-swap! den den2)
+  ;;(p/diffuse vel2 vel obstacles 0.001 0.1 20) (canvas-swap! vel vel2)
+  ;;(p/splat vel 0.5 0.5 0.01   -1 0 0)
+
+  ;;(p/project vel2 prs divergence vel obstacles 16) (canvas-swap! vel vel2)
+  ;;(p/* vel2 vel den) (canvas-swap! vel vel2)
+
+  )
+
+
 ;; crash: (define core-iteration #f)
 (begin
   (p/fill obstacles 0 0 0 0)
@@ -24,8 +52,6 @@
   (p/diffuse vel2 vel obstacles 0.00001 0.001) (canvas-swap! vel vel2))
 
 (p/project)
-
-
 
 
 (p/fill den 0 0 0 0)

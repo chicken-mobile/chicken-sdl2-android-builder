@@ -19,7 +19,15 @@
 (include "canvas.scm")
 (include "shaders.scm")
 
-(define (f32vector-sum d) (let loop ((i 0) (s 0)) (if (< i (f32vector-length d)) (loop (+ 1 i) (+ (f32vector-ref d i) s)) s)))
+(define (f32vector-sum d)
+  (let loop ((i 0) (s 0) (max most-negative-fixnum) (min most-positive-fixnum))
+    (if (< i (f32vector-length d))
+        (let ((w (f32vector-ref d i)))
+          (loop (+ 1 i)
+                (+ w s)
+                (if (> w max) w max)
+                (if (and (not (= w 0)) (< w min)) w min)))
+        (values s max min))))
 
 (begin
   (define gridsize 256)
@@ -42,7 +50,7 @@
 (define (reset!)
   (for-each (lambda (canvas) (p/fill canvas  0 0 0 0))
             (list vel den den2 prs prs2))
-  (p/splat den 0.53 0.5 0.02   1000 0 0))
+  (p/splat den 0.53 0.5 0.03   1 0 0))
 
 ;; (canvas-pixels den)
 ;; (canvas-pixels vel)
@@ -77,22 +85,25 @@ float project(vec2 axis, vec2 x) {
   return dot(x, axis);
 }
 
-const float vel = 0.01;
-
 void main() {
  ivec2 tsize = textureSize(VelocityTexture, 0);
  ivec2 tCoord = ivec2(InverseSize * vec2(tsize) * gl_FragCoord.xy);
  vec2 fragCoord = gl_FragCoord.xy;
- vec2  vel     =   (vec4(vel , vel,0.0,1.0)*texelFetch(VelocityTexture,  tCoord, 0)).xy;
- float density =   (vec4(0.02,0.00,0.0,1.0)*texelFetch(DensityTexture,   tCoord, 0)).x;
- float pressure =  (vec4(1.00,0.00,0.0,1.0)*texelFetch(PressureTexture,  tCoord, 0)).x;
- float obstacles = (vec4(0.20,0.00,0.0,1.0)*texelFetch(ObstaclesTexture, tCoord, 0)).x;
+ vec2  vel     =   (0.91*texelFetch(VelocityTexture,  tCoord, 0)).xy;
+ float density =   (9.00*texelFetch(DensityTexture,   tCoord, 0)).x;
+ float pressure =  (1.00*texelFetch(PressureTexture,  tCoord, 0)).x;
+ float obstacles = (0.05*texelFetch(ObstaclesTexture, tCoord, 0)).x;
 
  //density = min(density, 1.0);
  //float off = mod(project(normalize(vel), vec2(fragCoord)), PI*2.0);
  //float t = off - mod(length(vel) * Time * 0.1, PI*2.0);
  //if(length(vel) > 100000.25) density *= .5 + 0.5*(sin(t));
- FragColor = vec4(length(vel)+obstacles, max(0.0,pressure - density) * 2.0, density , 0);
+
+ float white = 0.0;
+ //if(length(vel) > 1.0)
+  white =0.0;// 5.0 * (length(vel));
+
+ FragColor = vec4(length(vel), max(0.0, obstacles), white+density , 0);
 }
 "))
     (let-program-locations
@@ -124,6 +135,7 @@ void main() {
 
 (define mouse #f)
 (define pause #f)
+(define mradius 0.01)
 (define handle
   (let ((up #t))
     (lambda (event)
@@ -133,6 +145,14 @@ void main() {
          (receive (w h) (sdl2:window-size window)
            (gl:viewport 0 0 w h)))
         ((key-up text-input))
+        ((mouse-wheel)
+         (define wheel (sdl2:mouse-wheel-event-y event))
+         (define x (vector-ref mouse 0))
+         (define y (vector-ref mouse 1))
+         (define r (if (sdl2:scancode-pressed? 'lctrl)
+                       0.1
+                       0.01))
+         (p/splat+ obstacles x y r (* 1 wheel) 0 0))
         ((key-down)
          ;;(print "handling key" event)
          (case (sdl2:keyboard-event-sym event)
@@ -172,10 +192,12 @@ void main() {
                (let ((xx (* 2 (+ (sdl2:mouse-motion-event-xrel event)))) ;; r
                      (yy (* 2 (- (sdl2:mouse-motion-event-yrel event)))))
                  (case (car (sdl2:mouse-motion-event-state event))
-                   ((middle) (p/splat+ den x y 0.01  100 0 0)) ;; add "water"
-                   ((right) (if (sdl2:scancode-pressed? 'lshift)
-                                (p/splat obstacles x y 0.01   0 0 0)
-                                (p/splat obstacles x y 0.01   1 0 0)))
+                   ((right) (p/splat+ den x y 0.01  0.1 0 0)) ;; add "water"
+                   ((middle)
+                    (define r (if (sdl2:scancode-pressed? 'lctrl) 0.1 0.01))
+                    (if (sdl2:scancode-pressed? 'lshift)
+                        (p/splat obstacles x y r    0 0 0)
+                        (p/splat obstacles x y r   10 0 0)))
                    ((left) (p/splat+ vel x y 0.01   (* 0.1 xx) (* 0.1 yy) 0)))))))
          (set! up (null? (sdl2:mouse-motion-event-state event))))
         ((mouse-button-up) (set! up #t))
@@ -186,30 +208,6 @@ void main() {
 ;;(with-output-to-file "vel.f32" (lambda () (write pixvel)))
 
 (define frames 0)
-(define core-iteration
-  (let ((event (sdl2:make-event))
-        (dt 0.25)
-        (iterations 32))
-    (lambda ()
-      (while* (sdl2:poll-event! event) (handle it))
-      (set! frames (add1 frames))
-
-      ;; ==================== density step ====================
-      ;;(p/diffuse den2 den obstacles 0.00001 0.1 20) (canvas-swap! den den2)
-      (p/advect den2 vel den obstacles (* 2 dt) 1) (canvas-swap! den den2)
-
-      ;; ==================== velocity step ====================
-      ;;(p/fill vel 0 0 0 0)
-      (p/splat vel 0.25 0.5 0.01   30 0 0)
-
-      (p/project vel2 prs divergence vel obstacles 64) (canvas-swap! vel vel2)
-      (p/advect  vel2 vel vel obstacles dt 1)          (canvas-swap! vel vel2)
-
-      (p/project vel2 prs divergence vel obstacles 64) (canvas-swap! vel vel2)
-
-      (receive (w h) (sdl2:window-size window)
-        (visualize w h  vel den2 den obstacles))
-      (sdl2:gl-swap-window! window))))
 
 (define render
   (let ((event (sdl2:make-event)))
@@ -222,24 +220,11 @@ void main() {
 
 (define (core-iteration)
   (define dt 0.25)
-  ;;(define old (f32vector-sum (canvas-pixels den)))
-  ;;
 
-  ;;(p/+ prs den 0)
   (p/advect-conserving den2 vel den obstacles dt) (canvas-swap! den den2)
 
-  ;;(p/project vel2 prs divergence vel obstacles 8) (canvas-swap! vel vel2)
-  ;;(p/advect den2 vel den obstacles 0.1 1) (canvas-swap! den den2)
-  ;;(p/project vel2 prs divergence vel obstacles 8) (canvas-swap! vel vel2)
-
   (p/advect-conserving vel2 vel vel obstacles dt) (canvas-swap! vel vel2)
-  ;;(p/advect vel2 vel vel obstacles 0.1 1) (canvas-swap! vel vel2)
-  (p/subtract-gradient vel2 vel den obstacles 0.01) (canvas-swap! vel vel2)
-
-  ;;(p/splat vel 0.5 0.5 0.01   -1 0 0)
-
-  ;;(p/project vel2 prs divergence vel obstacles 20) (canvas-swap! vel vel2)
-  ;;(p/* vel2 vel den) (canvas-swap! vel vel2)
+  (p/subtract-gradient vel2 vel den obstacles 0.001) (canvas-swap! vel vel2)
 
   )
 
@@ -251,7 +236,7 @@ void main() {
   (let loop ((n 0) (t (cm)))
     (dynamic-wind
       (lambda () (mutex-lock! MUTEX))
-      (lambda () (unless pause (proc)))
+      proc
       (lambda () (mutex-unlock! MUTEX)))
     (cond ((> (- (cm) t) 2000)
            (set! fps (inexact->exact (round (/ n (/ (- (cm) t) 1000)))))

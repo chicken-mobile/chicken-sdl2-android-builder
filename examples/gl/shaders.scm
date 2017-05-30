@@ -274,7 +274,6 @@ uniform sampler2D Obstacles;
 uniform vec2 InverseSize;
 uniform float TimeStep;
 uniform float Dissipation;
-uniform bool Positive; // set to true to avoid negative values (ie for density)
 
 // scale [x,y] such that x+y = 1.0 at most, and x and y become their
 // respective fractions.
@@ -300,11 +299,11 @@ void main() {
     vec2 vel  = texelFetch(VelocityTexture, T, 0).xy;
 
     // surrounding obstructions
-    vec4 oN = texelFetchOffset(Obstacles, T, 0, ivec2( 0, +1));
-    vec4 oS = texelFetchOffset(Obstacles, T, 0, ivec2( 0, -1));
-    vec4 oE = texelFetchOffset(Obstacles, T, 0, ivec2(+1,  0));
-    vec4 oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1,  0));
-    vec4 o  = texelFetch(Obstacles, T, 0);
+    vec4 oN = vec4(0);//texelFetchOffset(Obstacles, T, 0, ivec2( 0, +1));
+    vec4 oS = vec4(0);//texelFetchOffset(Obstacles, T, 0, ivec2( 0, -1));
+    vec4 oE = vec4(0);//texelFetchOffset(Obstacles, T, 0, ivec2(+1,  0));
+    vec4 oW = vec4(0);//texelFetchOffset(Obstacles, T, 0, ivec2(-1,  0));
+    vec4 o  = vec4(0);//texelFetch(Obstacles, T, 0);
 
 
     // what do they carry with them
@@ -324,6 +323,7 @@ void main() {
 
     if(o.x > 0.0) {
       vel = velN = velS = velE = velW = vec2(0.0);
+      p = vec4(0.0); // i don't know where this leaks
     }
 
 
@@ -353,13 +353,13 @@ void main() {
     if(vel.x > 0.0) giving += p *  vel.x;
     if(vel.x < 0.0) giving += p * -vel.x;
 
-    FragColor = p + (taking - giving) * TimeStep;
+    FragColor = (Dissipation * p) + (taking - giving) * TimeStep;
 }
 "))
     (let-program-locations
-     prg (VelocityTexture SourceTexture Obstacles InverseSize TimeStep Positive)
+     prg (VelocityTexture SourceTexture Obstacles InverseSize TimeStep Dissipation)
 
-     (lambda (out velocity source obstacles timestep #!optional (positive (if (= 1 (canvas-d source)) #t #f)))
+     (lambda (out velocity source obstacles timestep #!optional (dissipation 1))
        (assert (= 2 (canvas-d velocity)))
        (with-output-to-canvas
         out
@@ -381,7 +381,7 @@ void main() {
 
          (gl:uniform2f InverseSize     (/ 1 (canvas-w out)) (/ 1 (canvas-h out)))
          (gl:uniform1f TimeStep timestep)
-         (gl:uniform1i TimeStep (if positive 1 0))
+         (gl:uniform1f Dissipation dissipation)
          (render-square)))))))
 
 
@@ -528,6 +528,8 @@ uniform sampler2D Pressure;
 uniform sampler2D Obstacles;
 uniform float GradientScale;
 
+const float delta_threshold = 0.0;
+
 void main() {
     ivec2 T = ivec2(gl_FragCoord.xy);
 
@@ -540,23 +542,32 @@ void main() {
 
 
     // Find neighboring obstacles:
-    vec3 oN = texelFetchOffset(Obstacles, T, 0, ivec2(0, 1)).xyz;
-    vec3 oS = texelFetchOffset(Obstacles, T, 0, ivec2(0, -1)).xyz;
-    vec3 oE = texelFetchOffset(Obstacles, T, 0, ivec2(1, 0)).xyz;
-    vec3 oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1, 0)).xyz;
+    float oN = texelFetchOffset(Obstacles, T, 0, ivec2(0, 1)).x;
+    float oS = texelFetchOffset(Obstacles, T, 0, ivec2(0, -1)).x;
+    float oE = texelFetchOffset(Obstacles, T, 0, ivec2(1, 0)).x;
+    float oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1, 0)).x;
+    float oC = texelFetchOffset(Obstacles, T, 0, ivec2( 0, 0)).x;
 
+    // tops
+    float tN = pN + oN;
+    float tS = pS + oS;
+    float tE = pE + oE;
+    float tW = pW + oW;
+    float tC = pC + oC;
 
     // Use center pressure for solid cells:
     vec2 vMask = vec2(1);
 
-    if (oN.x > 0.0) { pN = pC; if(pC < pS) vMask.y = 0.0; }
-    if (oS.x > 0.0) { pS = pC; if(pC < pN) vMask.y = 0.0; }
-    if (oE.x > 0.0) { pE = pC; if(pC < pW) vMask.x = 0.0; }
-    if (oW.x > 0.0) { pW = pC; if(pC < pE) vMask.x = 0.0; }
+    if (tN > tC) { tN = tC; if(tC < tS) vMask.y = 0.0; }
+    if (tS > tC) { tS = tC; if(tC < tN) vMask.y = 0.0; }
+    if (tE > tC) { tE = tC; if(tC < tW) vMask.x = 0.0; }
+    if (tW > tC) { tW = tC; if(tC < tE) vMask.x = 0.0; }
 
     // Enforce the free-slip boundary condition:
     vec2 oldV = texelFetch(Velocity, T, 0).xy;
-    vec2 grad = vec2(pE - pW, pN - pS) * GradientScale;
+    vec2 grad = vec2(tE - tW, tN - tS) * clamp(pC, 0.0, 1.0);
+    grad = grad * GradientScale;
+
     FragColor = vMask * (oldV - grad);
 }
 "))
