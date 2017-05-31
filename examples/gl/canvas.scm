@@ -130,7 +130,7 @@ void main(){
                                 (canvas-h canvas)
                                 (canvas-d canvas))
                              -1))
-  (with-output-to-canvas
+  (with-output-to-canvas ;; obs ... misleading name
    canvas
    (gl:read-pixels 0 0 (canvas-w canvas) (canvas-h canvas)
                    (case (canvas-d canvas)
@@ -142,6 +142,27 @@ void main(){
                    gl:+float+
                    (gl-utils:->pointer px)))
   px)
+
+;; always rgba
+(define (canvas-pixels-set! canvas f32pixels)
+  (define w (canvas-w canvas))
+  (define h (canvas-h canvas))
+  (define p (gl-utils:->pointer f32pixels))
+  (assert (= (* w h 4) (f32vector-length f32pixels)))
+  (with-texture
+   (canvas-tex canvas)
+   (if #f ;; 32f or 16f?
+       (case (canvas-d canvas)
+         ((1) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+r16f+    w h 0 gl:+rgba+ gl:+float+ p))
+         ((2) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rg16f+   w h 0 gl:+rgba+ gl:+float+ p))
+         ((3) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rgb16f+  w h 0 gl:+rgba+ gl:+float+ p))
+         ((4) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rgba16f+ w h 0 gl:+rgba+ gl:+float+ p)))
+       (case (canvas-d canvas)
+         ((1) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+r32f+    w h 0 gl:+rgba+ gl:+float+ p))
+         ((2) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rg32f+   w h 0 gl:+rgba+ gl:+float+ p))
+         ((3) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rgb32f+  w h 0 gl:+rgba+ gl:+float+ p))
+         ((4) (gl:tex-image-2d gl:+texture-2d+ 0 gl:+rgba32f+ w h 0 gl:+rgba+ gl:+float+ p))))))
+
 
 
 ;; we really just want to incoke fragment shaders for all pixels. this
@@ -173,3 +194,4 @@ void main(){
        #f))))
 
 
+(include "ppm.scm")

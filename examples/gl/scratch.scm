@@ -1,4 +1,7 @@
 
+(begin
+  (p/diffuse prs obstacles obstacles 0.0001 0.1 64)
+  (canvas-swap! obstacles prs))
 
 
 (define (core-iteration)
@@ -7,12 +10,12 @@
   ;;
 
   ;;(p/+ prs den 0)
-  (p/advect-conserving den2 vel den obstacles dt) (canvas-swap! den den2)
 
   ;;(p/project vel2 prs divergence vel obstacles 8) (canvas-swap! vel vel2)
   ;;(p/advect den2 vel den obstacles 0.1 1) (canvas-swap! den den2)
   ;;(p/project vel2 prs divergence vel obstacles 8) (canvas-swap! vel vel2)
-  (p/subtract-gradient vel2 vel den obstacles 0.25) (canvas-swap! vel vel2)
+  (p/subtract-gradient vel2 vel den obstacles 0.05) (canvas-swap! vel vel2)
+  (p/advect-conserving den2 vel den obstacles dt) (canvas-swap! den den2)
 
   (p/advect-conserving vel2 vel vel obstacles dt 1) (canvas-swap! vel vel2)
   ;;(p/advect vel2 vel vel obstacles 0.1 1) (canvas-swap! vel vel2)
@@ -25,6 +28,12 @@
   ;;(p/* vel2 vel den) (canvas-swap! vel vel2)
 
   )
+
+(define obstacles2 (create-canvas (canvas-w obstacles) (canvas-h obstacles) (canvas-d obstacles)))
+(define zero (create-canvas (canvas-w obstacles) (canvas-h obstacles) (canvas-d obstacles)))
+
+(begin (p/diffuse-conserving obstacles2 obstacles zero)
+       (canvas-swap! obstacles obstacles2))
 
 
 ;; crash: (define core-iteration #f)

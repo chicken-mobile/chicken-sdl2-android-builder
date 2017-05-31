@@ -119,6 +119,50 @@ void main() {
          (render-square)
          (gl:disable gl:+blend+)))))))
 
+;; (define p/blur
+;;   (let ()
+;;     (define prg
+;;       (create-program
+;;        #f "
+;; #version 300 es
+;; precision mediump float;
+
+;; out vec4 FragColor;
+
+;; uniform sampler2D Source;
+;; uniform vec2 Point;
+;; uniform float Amount;
+
+;; void main() {
+;;     ivec2 T = ivec2(gl_FragCoord.xy);
+;;     vec4 s = texelFetch(Source, T, 0);
+;;     float d = distance(Point, gl_FragCoord.xy);
+;;     if (d < Radius) {
+;;       FragColor = s
+;;     } else {
+;;       FragColor = s;
+;;     }
+;; }
+;; "))
+;;     (let-program-locations
+;;      prg (Source Point Radius)
+
+;;      (lambda (out source x y radius)
+;;        (with-output-to-canvas
+;;         out
+;;         (with-program
+;;          prg
+
+;;          (gl:uniform2f Point     (* x (canvas-w out)) (* (canvas-h out) y))
+;;          (gl:uniform1f Radius    (* radius (canvas-h out)))
+;;          (gl:uniform3f FillColor r g b)
+
+;;          (gl:enable gl:+blend+)
+;;          (gl:blend-func gl:+one+ gl:+one-minus-src-alpha+)
+;;          ;; gl:+one-minus-src-alpha+ wont work on my fairphone2! why!?
+;;          (render-square)
+;;          (gl:disable gl:+blend+)))))))
+
 (define p/+
 
   (let ((prg
@@ -385,6 +429,163 @@ void main() {
          (render-square)))))))
 
 
+(define p/subtract-gradient
+  (let ()
+    (define prg (create-program #f "
+#version 300 es
+precision mediump float;
+
+out vec2 FragColor;
+
+uniform sampler2D Velocity;
+uniform sampler2D Pressure;
+uniform sampler2D Obstacles;
+uniform float GradientScale;
+
+const float delta_threshold = 0.0;
+
+void main() {
+    ivec2 T = ivec2(gl_FragCoord.xy);
+
+    // Find neighboring pressure:
+    float pN = texelFetchOffset(Pressure, T, 0, ivec2(0, 1)).r;
+    float pS = texelFetchOffset(Pressure, T, 0, ivec2(0, -1)).r;
+    float pE = texelFetchOffset(Pressure, T, 0, ivec2(1, 0)).r;
+    float pW = texelFetchOffset(Pressure, T, 0, ivec2(-1, 0)).r;
+    float pC = texelFetch(Pressure, T, 0).r;
+
+
+    // Find neighboring obstacles:
+    float oN = texelFetchOffset(Obstacles, T, 0, ivec2(0, 1)).x;
+    float oS = texelFetchOffset(Obstacles, T, 0, ivec2(0, -1)).x;
+    float oE = texelFetchOffset(Obstacles, T, 0, ivec2(1, 0)).x;
+    float oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1, 0)).x;
+    float oC = texelFetchOffset(Obstacles, T, 0, ivec2( 0, 0)).x;
+
+    // tops
+    float tN = pN + oN;
+    float tS = pS + oS;
+    float tE = pE + oE;
+    float tW = pW + oW;
+    float tC = pC + oC;
+
+    // Use center pressure for solid cells:
+    vec2 vMask = vec2(1);
+
+    if (tN > tC) { tN = tC; if(tC < tS) vMask.y = 0.0; }
+    if (tS > tC) { tS = tC; if(tC < tN) vMask.y = 0.0; }
+    if (tE > tC) { tE = tC; if(tC < tW) vMask.x = 0.0; }
+    if (tW > tC) { tW = tC; if(tC < tE) vMask.x = 0.0; }
+
+    //if(pC <= 0.01) vMask = vec2(0);
+
+    // Enforce the free-slip boundary condition:
+    vec2 oldV = texelFetch(Velocity, T, 0).xy;
+    vec2 grad = vec2(tE - tW, tN - tS);
+    grad *= clamp(pC * 100.0, 0.0, 1.0);
+    grad *= GradientScale;
+
+    FragColor = vMask * (oldV - grad);
+}
+"))
+
+    (define CellSize 1.25)
+
+    (let-program-locations
+     prg (Velocity Pressure Obstacles GradientScale)
+
+     (lambda (out velocity pressure obstacles #!optional (gradient-scale (/ 1.125 CellSize)))
+       (with-output-to-canvas
+        out
+        (with-program
+         prg
+
+         (gl:uniform1i Obstacles 2)
+         (gl:active-texture gl:+texture2+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
+
+         (gl:uniform1i Pressure 1)
+         (gl:active-texture gl:+texture1+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex pressure))
+
+         (gl:uniform1i Velocity 0)
+         (gl:active-texture gl:+texture0+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
+
+         (gl:uniform1f GradientScale gradient-scale)
+
+         (render-square)))))))
+
+;; from https://github.com/pyalot/craftscape/blob/master/water/diffuse.shader
+(define p/diffuse-conserving
+  (let ()
+    (define prg (create-program #f "
+#version 300 es
+precision mediump float;
+
+out vec3 FragColor;
+uniform sampler2D Heights, Source;
+uniform vec2 InverseSize, Axis;
+
+vec3 exchange(float t1, float h1, vec2 off) {
+    vec2 uv = (gl_FragCoord.xy+off) * InverseSize;
+    float t2 = texture(Heights, uv).x;
+    float h2 = texture(Source, uv).x;
+    float f1 = t1+h1;
+    float f2 = t2+h2;
+    float diff = (f2-f1)/2.0;
+    diff = clamp(diff*0.65, -h1/2.0, h2/2.0);
+    return vec3(diff, -off*diff);
+}
+
+void main(void) {
+    vec2 uv = gl_FragCoord.xy * InverseSize;
+    float t = texture(Heights, uv).x;
+    vec3 h = texture(Source, uv).xyz;
+    vec3 r = h + exchange(t, h.x, Axis) + exchange(t, h.x, -Axis);
+    FragColor = r;
+}
+"))
+    (define wrk #f) ;; temporary worker surface since we can't write to our uniform texture
+
+    (let-program-locations
+     prg (Heights Source InverseSize Axis)
+
+     (lambda (out source obstacles)
+
+       (define out-fb (canvas-fb out))
+
+       (unless (and (canvas? wrk)
+                    (=  (canvas-h wrk) (canvas-h out))
+                    (=  (canvas-w wrk) (canvas-w out))
+                    (>= (canvas-d wrk) (canvas-d out)))
+         (print "obs: p/lin_solve creating new temporary surface")
+         (set! wrk (create-canvas (canvas-w out)
+                                  (canvas-h out)
+                                  (canvas-d out))))
+       ;;(print "start wrk " wrk " " out)
+       ;;(p/fill wrk 0 0 0 0)
+
+       (with-program
+        prg
+
+        
+        (gl:uniform1i Heights 1)
+        (gl:active-texture gl:+texture1+)
+        (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
+
+        (gl:uniform1i Source 0)
+        (gl:active-texture gl:+texture0+)
+        (gl:bind-texture   gl:+texture-2d+ (canvas-tex source))
+
+        (gl:uniform2f InverseSize (/ (canvas-w source)) (/ (canvas-h source)))
+          
+        (gl:uniform2f Axis 0 1) (with-output-to-canvas wrk (render-square))
+
+        (gl:bind-texture   gl:+texture-2d+ (canvas-tex wrk))
+        (gl:uniform2f Axis 1 0) (with-output-to-canvas out (render-square)))))))
+
+
 (define p/divergence
   (let ()
     (define prg
@@ -515,89 +716,6 @@ void main() {
 
          (render-square)))))))
 
-(define p/subtract-gradient
-  (let ()
-    (define prg (create-program #f "
-#version 300 es
-precision mediump float;
-
-out vec2 FragColor;
-
-uniform sampler2D Velocity;
-uniform sampler2D Pressure;
-uniform sampler2D Obstacles;
-uniform float GradientScale;
-
-const float delta_threshold = 0.0;
-
-void main() {
-    ivec2 T = ivec2(gl_FragCoord.xy);
-
-    // Find neighboring pressure:
-    float pN = texelFetchOffset(Pressure, T, 0, ivec2(0, 1)).r;
-    float pS = texelFetchOffset(Pressure, T, 0, ivec2(0, -1)).r;
-    float pE = texelFetchOffset(Pressure, T, 0, ivec2(1, 0)).r;
-    float pW = texelFetchOffset(Pressure, T, 0, ivec2(-1, 0)).r;
-    float pC = texelFetch(Pressure, T, 0).r;
-
-
-    // Find neighboring obstacles:
-    float oN = texelFetchOffset(Obstacles, T, 0, ivec2(0, 1)).x;
-    float oS = texelFetchOffset(Obstacles, T, 0, ivec2(0, -1)).x;
-    float oE = texelFetchOffset(Obstacles, T, 0, ivec2(1, 0)).x;
-    float oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1, 0)).x;
-    float oC = texelFetchOffset(Obstacles, T, 0, ivec2( 0, 0)).x;
-
-    // tops
-    float tN = pN + oN;
-    float tS = pS + oS;
-    float tE = pE + oE;
-    float tW = pW + oW;
-    float tC = pC + oC;
-
-    // Use center pressure for solid cells:
-    vec2 vMask = vec2(1);
-
-    if (tN > tC) { tN = tC; if(tC < tS) vMask.y = 0.0; }
-    if (tS > tC) { tS = tC; if(tC < tN) vMask.y = 0.0; }
-    if (tE > tC) { tE = tC; if(tC < tW) vMask.x = 0.0; }
-    if (tW > tC) { tW = tC; if(tC < tE) vMask.x = 0.0; }
-
-    // Enforce the free-slip boundary condition:
-    vec2 oldV = texelFetch(Velocity, T, 0).xy;
-    vec2 grad = vec2(tE - tW, tN - tS) * clamp(pC, 0.0, 1.0);
-    grad = grad * GradientScale;
-
-    FragColor = vMask * (oldV - grad);
-}
-"))
-
-    (define CellSize 1.25)
-
-    (let-program-locations
-     prg (Velocity Pressure Obstacles GradientScale)
-
-     (lambda (out velocity pressure obstacles #!optional (gradient-scale (/ 1.125 CellSize)))
-       (with-output-to-canvas
-        out
-        (with-program
-         prg
-
-         (gl:uniform1i Obstacles 2)
-         (gl:active-texture gl:+texture2+)
-         (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
-
-         (gl:uniform1i Pressure 1)
-         (gl:active-texture gl:+texture1+)
-         (gl:bind-texture   gl:+texture-2d+ (canvas-tex pressure))
-
-         (gl:uniform1i Velocity 0)
-         (gl:active-texture gl:+texture0+)
-         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
-
-         (gl:uniform1f GradientScale gradient-scale)
-
-         (render-square)))))))
 
 
 

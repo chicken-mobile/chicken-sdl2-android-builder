@@ -50,7 +50,8 @@
 (define (reset!)
   (for-each (lambda (canvas) (p/fill canvas  0 0 0 0))
             (list vel den den2 prs prs2))
-  (p/splat den 0.53 0.5 0.03   1 0 0))
+  ;;(p/splat den 0.53 0.5 0.03   1 0 0)
+  )
 
 ;; (canvas-pixels den)
 ;; (canvas-pixels vel)
@@ -59,79 +60,7 @@
 ;; (rain den 1 0 0 0)
 
 
-(define visualize
-
-  (let ()
-    (define prg
-      (create-program
-       #f
-       "
-#version 300 es
-precision mediump float;
-
-#define PI 3.1415926538
-#define PI2 (2.0*3.1415926538)
-
-out vec4 FragColor;
-
-uniform sampler2D DensityTexture;
-uniform sampler2D VelocityTexture;
-uniform sampler2D PressureTexture;
-uniform sampler2D ObstaclesTexture;
-uniform vec2 InverseSize;
-uniform float Time;
-
-float project(vec2 axis, vec2 x) {
-  return dot(x, axis);
-}
-
-void main() {
- ivec2 tsize = textureSize(VelocityTexture, 0);
- ivec2 tCoord = ivec2(InverseSize * vec2(tsize) * gl_FragCoord.xy);
- vec2 fragCoord = gl_FragCoord.xy;
- vec2  vel     =   (0.91*texelFetch(VelocityTexture,  tCoord, 0)).xy;
- float density =   (9.00*texelFetch(DensityTexture,   tCoord, 0)).x;
- float pressure =  (1.00*texelFetch(PressureTexture,  tCoord, 0)).x;
- float obstacles = (0.05*texelFetch(ObstaclesTexture, tCoord, 0)).x;
-
- //density = min(density, 1.0);
- //float off = mod(project(normalize(vel), vec2(fragCoord)), PI*2.0);
- //float t = off - mod(length(vel) * Time * 0.1, PI*2.0);
- //if(length(vel) > 100000.25) density *= .5 + 0.5*(sin(t));
-
- float white = 0.0;
- //if(length(vel) > 1.0)
-  white =0.0;// 5.0 * (length(vel));
-
- FragColor = vec4(length(vel), max(0.0, obstacles), white+density , 0);
-}
-"))
-    (let-program-locations
-     prg (VelocityTexture DensityTexture PressureTexture ObstaclesTexture InverseSize Time)
-
-     (lambda (w h  vel prs den obs)
-       (with-program
-        prg
-
-        (gl:uniform1i ObstaclesTexture 3)
-        (gl:active-texture gl:+texture3+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex obs))
-
-        (gl:uniform1i PressureTexture  2)
-        (gl:active-texture gl:+texture2+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex prs))
-
-        (gl:uniform1i VelocityTexture  1)
-        (gl:active-texture gl:+texture1+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex vel))
-
-        (gl:uniform1i DensityTexture   0)
-        (gl:active-texture gl:+texture0+)
-        (gl:bind-texture   gl:+texture-2d+ (canvas-tex den))
-
-        (gl:uniform2f InverseSize (/ 1 w) (/ 1 h))
-        (gl:uniform1f Time (sdl2:get-ticks))
-        (render-square))))))
+(include "visualize.scm")
 
 (define mouse #f)
 (define pause #f)
@@ -152,7 +81,7 @@ void main() {
          (define r (if (sdl2:scancode-pressed? 'lctrl)
                        0.1
                        0.01))
-         (p/splat+ obstacles x y r (* 1 wheel) 0 0))
+         (p/splat+ obstacles x y r (* 0.01 wheel) 0 0))
         ((key-down)
          ;;(print "handling key" event)
          (case (sdl2:keyboard-event-sym event)
@@ -160,8 +89,10 @@ void main() {
             (p/fill den 0 0 0 0)
             (p/fill vel 0 0 0 0))
            ((c) (reset!))
+           ((l) (canvas-pixels-from-ppm obstacles "./assets/island.ppm"))
            ((d) (print "density: " (floor (f32vector-sum (canvas-pixels den)))))
            ((return) (set! pause (not pause)) (print "paused: " pause))
+           ((tab) (core-iteration))
            ((space)
             (define (pget c x y)
               ;;(define c vel)
@@ -196,9 +127,9 @@ void main() {
                    ((middle)
                     (define r (if (sdl2:scancode-pressed? 'lctrl) 0.1 0.01))
                     (if (sdl2:scancode-pressed? 'lshift)
-                        (p/splat obstacles x y r    0 0 0)
-                        (p/splat obstacles x y r   10 0 0)))
-                   ((left) (p/splat+ vel x y 0.01   (* 0.1 xx) (* 0.1 yy) 0)))))))
+                        (p/splat obstacles x y r    0   0 0)
+                        (p/splat obstacles x y r    0.5 0 0)))
+                   ((left) (p/splat+ vel x y 0.01   (* 1 xx) (* 1 yy) 0)))))))
          (set! up (null? (sdl2:mouse-motion-event-state event))))
         ((mouse-button-up) (set! up #t))
         (else (print "unhandled " event))))))
@@ -221,11 +152,15 @@ void main() {
 (define (core-iteration)
   (define dt 0.25)
 
+  ;;(p/diffuse-conserving den2 den obstacles) (canvas-swap! den den2)
+  (p/splat den 0.55 0.45 0.01  .1 0 0 )
   (p/advect-conserving den2 vel den obstacles dt) (canvas-swap! den den2)
-
+  ;;(p/diffuse-conserving den2 den obstacles) (canvas-swap! den den2)
   (p/advect-conserving vel2 vel vel obstacles dt) (canvas-swap! vel vel2)
-  (p/subtract-gradient vel2 vel den obstacles 0.001) (canvas-swap! vel vel2)
-
+  (p/diffuse-conserving den2 den obstacles) (canvas-swap! den den2)
+  (p/diffuse-conserving den2 den obstacles) (canvas-swap! den den2)
+  (p/subtract-gradient vel2 vel den obstacles 0.01) (canvas-swap! vel vel2)
+  ;;(p/diffuse-conserving vel2 vel obstacles) (canvas-swap! vel vel2)
   )
 
 (reset!)
