@@ -81,7 +81,10 @@
          (define r (if (sdl2:scancode-pressed? 'lctrl)
                        0.1
                        0.01))
-         (p/splat+ obstacles x y r (* 0.01 wheel) 0 0))
+         (define amount (if (sdl2:scancode-pressed? 'lshift)
+                            0.1
+                            0.01))
+         (p/splat+ obstacles x y r (* amount wheel) 0 0))
         ((key-down)
          ;;(print "handling key" event)
          (case (sdl2:keyboard-event-sym event)
