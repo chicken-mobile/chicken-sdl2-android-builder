@@ -1,25 +1,31 @@
-(sdl2:set-main-ready!)
-(sdl2:init! '(video timer))
-(on-exit sdl2:quit!)
+
+(begin
+  (sdl2:set-main-ready!)
+  (sdl2:init! '(video))
+  (on-exit sdl2:quit!))
 
 ;; ====================
 (define window (sdl2:create-window!
                 "SDL2 + OpenGL Example"
-                'undefined 'undefined 512 512
+                'undefined 'undefined 320 240
                 '(opengl)))
 
-
-
 ;;; Use OpenGL 3.3
+
+
 (cond-expand
  (arm
   (sdl2:gl-attribute-set! 'context-profile-mask 'es)
-  (sdl2:gl-attribute-set! 'context-major-version 3)
+  (sdl2:gl-attribute-set! 'context-major-version 2)
   (sdl2:gl-attribute-set! 'context-minor-version 0))
  (else ;; even though my machine support es 3 0, i can't seem to create float textures with it :-(
   (sdl2:gl-attribute-set! 'context-profile-mask 'core)
   (sdl2:gl-attribute-set! 'context-major-version 3)
   (sdl2:gl-attribute-set! 'context-minor-version 3)))
+
+(print (list (sdl2:gl-attribute 'context-profile-mask)
+             (sdl2:gl-attribute 'context-major-version)
+             (sdl2:gl-attribute 'context-minor-version)))
 
 (define gl-context (sdl2:gl-create-context! window))
 

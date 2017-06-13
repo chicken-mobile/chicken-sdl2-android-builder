@@ -10,3 +10,13 @@
            (lambda () (mutex-lock! MUTEX))
            (lambda () (eval x))
            (lambda () (mutex-unlock! MUTEX)))))
+
+
+
+(print "heisann")
+
+(define (foo x)
+  (+ x 1))
+
+
+(foo 4)

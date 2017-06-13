@@ -30,7 +30,7 @@
         (values s max min))))
 
 (begin
-  (define gridsize 256)
+  (define gridsize 512)
   (define vel        (create-canvas gridsize gridsize 2)) (gc #t)
   (define vel2       (create-canvas gridsize gridsize 2)) (gc #t)
   (define den        (create-canvas gridsize gridsize 1)) (gc #t)
@@ -123,8 +123,8 @@
                   (y (- 1 (/ my h))))
              (set! mouse (vector x y))
              (unless up
-               (let ((xx (* 2 (+ (sdl2:mouse-motion-event-xrel event)))) ;; r
-                     (yy (* 2 (- (sdl2:mouse-motion-event-yrel event)))))
+               (let ((xx (* 0.01 (+ (sdl2:mouse-motion-event-xrel event)))) ;; r
+                     (yy (* 0.01 (- (sdl2:mouse-motion-event-yrel event)))))
                  (case (car (sdl2:mouse-motion-event-state event))
                    ((right) (p/splat+ den x y 0.01  0.1 0 0)) ;; add "water"
                    ((middle)
@@ -156,7 +156,7 @@
   (define dt 0.25)
 
   ;;(p/diffuse-conserving den2 den obstacles) (canvas-swap! den den2)
-  (p/splat den 0.55 0.45 0.01  .1 0 0 )
+  (p/splat+ den 0.5 0.5 1.000  .00001 0 0)
   (p/advect-conserving den2 vel den obstacles dt) (canvas-swap! den den2)
   ;;(p/diffuse-conserving den2 den obstacles) (canvas-swap! den den2)
   (p/advect-conserving vel2 vel vel obstacles dt) (canvas-swap! vel vel2)

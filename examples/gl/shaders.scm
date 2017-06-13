@@ -516,6 +516,81 @@ void main() {
 
          (render-square)))))))
 
+
+(define p/subtract-gradient2
+  (let ()
+    (define prg (create-program #f "
+#version 300 es
+precision mediump float;
+
+out vec2 FragColor;
+
+uniform sampler2D Velocity;
+uniform sampler2D Pressure;
+uniform sampler2D Obstacles;
+uniform float GradientScale;
+
+void main() {
+    ivec2 T = ivec2(gl_FragCoord.xy);
+
+    // Find neighboring pressure:
+    float pN = texelFetchOffset(Pressure, T, 0, ivec2(0, 1)).r;
+    float pS = texelFetchOffset(Pressure, T, 0, ivec2(0, -1)).r;
+    float pE = texelFetchOffset(Pressure, T, 0, ivec2(1, 0)).r;
+    float pW = texelFetchOffset(Pressure, T, 0, ivec2(-1, 0)).r;
+    float pC = texelFetch(Pressure, T, 0).r;
+
+
+    // Find neighboring obstacles:
+    vec3 oN = texelFetchOffset(Obstacles, T, 0, ivec2(0, 1)).xyz;
+    vec3 oS = texelFetchOffset(Obstacles, T, 0, ivec2(0, -1)).xyz;
+    vec3 oE = texelFetchOffset(Obstacles, T, 0, ivec2(1, 0)).xyz;
+    vec3 oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1, 0)).xyz;
+
+    // Use center pressure for solid cells:
+    vec2 obstV = vec2(0);
+    vec2 vMask = vec2(1);
+
+    if (oN.x > 0.0) { pN = pC; obstV.y = 0.0; vMask.y = 0.0; }
+    if (oS.x > 0.0) { pS = pC; obstV.y = 0.0; vMask.y = 0.0; }
+    if (oE.x > 0.0) { pE = pC; obstV.x = 0.0; vMask.x = 0.0; }
+    if (oW.x > 0.0) { pW = pC; obstV.x = 0.0; vMask.x = 0.0; }
+
+    // Enforce the free-slip boundary condition:
+    vec2 oldV = texelFetch(Velocity, T, 0).xy;
+    vec2 grad = vec2(pE - pW, pN - pS) * GradientScale;
+    vec2 newV = oldV - grad;
+    FragColor = (vMask * newV) + obstV;  
+}
+"))
+
+    (define CellSize 1.25)
+
+    (let-program-locations
+     prg (Velocity Pressure Obstacles GradientScale)
+
+     (lambda (out velocity pressure obstacles #!optional (gradient-scale (/ 1.125 CellSize)))
+       (with-output-to-canvas
+        out
+        (with-program
+         prg
+
+         (gl:uniform1i Obstacles 2)
+         (gl:active-texture gl:+texture2+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
+
+         (gl:uniform1i Pressure 1)
+         (gl:active-texture gl:+texture1+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex pressure))
+
+         (gl:uniform1i Velocity 0)
+         (gl:active-texture gl:+texture0+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
+
+         (gl:uniform1f GradientScale gradient-scale)
+
+         (render-square)))))))
+
 ;; from https://github.com/pyalot/craftscape/blob/master/water/diffuse.shader
 (define p/diffuse-conserving
   (let ()
@@ -526,6 +601,7 @@ precision mediump float;
 out vec3 FragColor;
 uniform sampler2D Heights, Source;
 uniform vec2 InverseSize, Axis;
+uniform float Scale;
 
 vec3 exchange(float t1, float h1, vec2 off) {
     vec2 uv = (gl_FragCoord.xy+off) * InverseSize;
@@ -542,16 +618,16 @@ void main(void) {
     vec2 uv = gl_FragCoord.xy * InverseSize;
     float t = texture(Heights, uv).x;
     vec3 h = texture(Source, uv).xyz;
-    vec3 r = h + exchange(t, h.x, Axis) + exchange(t, h.x, -Axis);
+    vec3 r = h + Scale * (exchange(t, h.x, Axis) + exchange(t, h.x, -Axis));
     FragColor = r;
 }
 "))
     (define wrk #f) ;; temporary worker surface since we can't write to our uniform texture
 
     (let-program-locations
-     prg (Heights Source InverseSize Axis)
+     prg (Heights Source InverseSize Axis Scale)
 
-     (lambda (out source obstacles)
+     (lambda (out source obstacles #!optional (scale 1.0))
 
        (define out-fb (canvas-fb out))
 
@@ -579,6 +655,7 @@ void main(void) {
         (gl:bind-texture   gl:+texture-2d+ (canvas-tex source))
 
         (gl:uniform2f InverseSize (/ (canvas-w source)) (/ (canvas-h source)))
+        (gl:uniform1f Scale scale)
           
         (gl:uniform2f Axis 0 1) (with-output-to-canvas wrk (render-square))
 
@@ -772,7 +849,7 @@ void main() {
     else if(T.y >= Edge.y) { s0 = texelFetchOffset(Source0, T, 0, ivec2(0,-1)); }
     else { s0 = texelFetch(Source0, T, 0); }
 
-    FragColor = (s0 + Alpha * (pN + pS + pE + pW)) * InverseBeta;
+    FragColor = (s0 + 1.0 * (pN + pS + pE + pW)) * 0.25;
 }
 "))
 
@@ -837,6 +914,258 @@ void main() {
   (p/divergence tmp_divergence vel obstacles (/ -0.5 (canvas-h tmp_divergence)))
   (p/fill tmp_prs 0 0 0 0)
   (p/lin_solve tmp_prs tmp_divergence obstacles 1 4 iterations)
-  (p/subtract-gradient out vel tmp_prs obstacles (* (canvas-h tmp_divergence) 0.5)))
+  (p/subtract-gradient2 out vel tmp_prs obstacles (* (canvas-h tmp_divergence) 0.5)))
 
 
+
+
+
+(define p/lin_solve2
+  (let ()
+
+    (define prg (create-program #f "
+#version 300 es
+precision mediump float;
+
+out vec4 FragColor;
+
+uniform sampler2D Out;
+uniform sampler2D Source0;
+uniform sampler2D Den;
+uniform sampler2D Obstacles;
+
+uniform float Alpha;
+uniform float InverseBeta;
+uniform ivec2 Edge;
+
+void main() {
+    ivec2 T = ivec2(gl_FragCoord.xy);
+
+    // Find neighboring pressure:
+    vec4 pN = texelFetchOffset(Out, T, 0, ivec2(0, 1));
+    vec4 pS = texelFetchOffset(Out, T, 0, ivec2(0, -1));
+    vec4 pE = texelFetchOffset(Out, T, 0, ivec2(1, 0));
+    vec4 pW = texelFetchOffset(Out, T, 0, ivec2(-1, 0));
+    vec4 pC = texelFetch(Out, T, 0);
+
+
+    vec4 dN = texelFetchOffset(Den, T, 0, ivec2(0, 1));
+    vec4 dS = texelFetchOffset(Den, T, 0, ivec2(0, -1));
+    vec4 dE = texelFetchOffset(Den, T, 0, ivec2(1, 0));
+    vec4 dW = texelFetchOffset(Den, T, 0, ivec2(-1, 0));
+    vec4 dC = texelFetchOffset(Den, T, 0, ivec2(0, 0));
+
+
+    // pN *= clamp(dN, 0.0, 1.0);
+    // pS *= clamp(dS, 0.0, 1.0);
+    // pE *= clamp(dE, 0.0, 1.0);
+    // pW *= clamp(dW, 0.0, 1.0);
+    // pC *= clamp(dC, 0.0, 1.0);
+
+
+    // Find neighboring obstacles:
+    vec4 oN = texelFetchOffset(Obstacles, T, 0, ivec2(0, 1));
+    vec4 oS = texelFetchOffset(Obstacles, T, 0, ivec2(0, -1));
+    vec4 oE = texelFetchOffset(Obstacles, T, 0, ivec2(1, 0));
+    vec4 oW = texelFetchOffset(Obstacles, T, 0, ivec2(-1, 0));
+   vec4 oC = texelFetchOffset(Obstacles, T, 0, ivec2(0, 0));
+
+    vec4 s0;
+
+    if(oN.x > 0.0) pN = pC;
+    if(oS.x > 0.0) pS = pC;
+    if(oE.x > 0.0) pE = pC;
+    if(oW.x > 0.0) pW = pC;
+
+    // TODO: handle corner-cases (literally)
+    if(T.x == 0)           { s0 = texelFetchOffset(Source0, T, 0, ivec2(1,0)); }
+    else if(T.y == 0)      { s0 = texelFetchOffset(Source0, T, 0, ivec2(0,1)); }
+    else if(T.x >= Edge.x) { s0 = texelFetchOffset(Source0, T, 0, ivec2(-1,0)); }
+    else if(T.y >= Edge.y) { s0 = texelFetchOffset(Source0, T, 0, ivec2(0,-1)); }
+    else { s0 = texelFetch(Source0, T, 0); }
+
+    FragColor = (s0 + Alpha * (pN + pS + pE + pW)) * InverseBeta;
+    if(oC.x > 0.0) FragColor = vec4(0);
+}
+"))
+
+    (define CellSize 1.25)
+    (define wrk #f) ;; temporary worker surface since we can't write to our uniform texture
+
+    (let-program-locations
+     prg (Out Source0 Obstacles Den Alpha Edge InverseBeta)
+
+     (lambda (out source0 obstacles den alpha beta iterations)
+
+       (define out-fb (canvas-fb out))
+
+       (unless (and (canvas? wrk)
+                    (=  (canvas-h wrk) (canvas-h out))
+                    (=  (canvas-w wrk) (canvas-w out))
+                    (>= (canvas-d wrk) (canvas-d out)))
+         (print "obs: p/lin_solve creating new temporary surface")
+         (set! wrk (create-canvas (canvas-w out)
+                                  (canvas-h out)
+                                  (canvas-d out))))
+       ;;(print "start wrk " wrk " " out)
+       (p/fill wrk 0 0 0 0)
+
+       (with-program
+        prg
+        (repeat
+         iterations ;; must be even since we're swapping. must leak our wrk!
+         (with-output-to-canvas
+          out
+
+          (gl:uniform1i Obstacles 3)
+          (gl:active-texture gl:+texture3+)
+          (gl:bind-texture   gl:+texture-2d+ (canvas-tex den))
+
+          (gl:uniform1i Obstacles 2)
+          (gl:active-texture gl:+texture2+)
+          (gl:bind-texture   gl:+texture-2d+ (canvas-tex obstacles))
+
+          (gl:uniform1i Out 1)
+          (gl:active-texture gl:+texture1+)
+          (gl:bind-texture   gl:+texture-2d+ (canvas-tex wrk))
+
+          (gl:uniform1i Source0 0)
+          (gl:active-texture gl:+texture0+)
+          (gl:bind-texture   gl:+texture-2d+ (canvas-tex source0))
+
+          (gl:uniform1f Alpha alpha)
+          (gl:uniform1f InverseBeta (/ beta))
+          (gl:uniform2i Edge (- (canvas-w source0) 1) (- (canvas-h source0) 1))
+
+          (render-square))
+         (canvas-swap! out wrk)))
+
+       (if (not (= out-fb (canvas-fb out)))
+           (error "out has been swapped, use even number of iterations"))))))
+
+;; out is new velocity
+(define (p/project2 out tmp_prs tmp_divergence vel obstacles den iterations)
+
+  (p/divergence tmp_divergence vel obstacles (/ -0.5 (canvas-h tmp_divergence)))
+  (p/fill tmp_prs 0 0 0 0)
+  (p/lin_solve2 tmp_prs tmp_divergence obstacles den 1 4 iterations)
+  (p/subtract-gradient2 out vel tmp_prs obstacles (* (canvas-h tmp_divergence) 0.5)))
+
+
+
+
+
+
+(define p/swe-advect
+  (let ()
+
+    (define prg (create-program #f "
+#version 300 es
+precision mediump float;
+
+out vec4 FragColor;
+
+uniform sampler2D Velocity;
+uniform sampler2D Water;
+uniform sampler2D Ground;
+
+void main() {
+    ivec2 T = ivec2(gl_FragCoord.xy);
+
+    vec2 vC = texelFetch(Velocity, T, 0).xy;
+
+    float hN = texelFetchOffset(Water, T, 0, ivec2(0, 1)).x;
+    float hS = texelFetchOffset(Water, T, 0, ivec2(0, -1)).x;
+    float hE = texelFetchOffset(Water, T, 0, ivec2(1, 0)).x;
+    float hW = texelFetchOffset(Water, T, 0, ivec2(-1, 0)).x;
+
+    float g = 9.81;
+    float b = 0.0;
+    float dt = 0.01;
+    vec2 delta = -g * (vec2(hE - hW, hN - hS)) - b * vC;
+
+    FragColor = vec4(clamp(vC + dt * delta, -0.2, 0.2), 0.0, 0.0);
+}
+"))
+
+    (let-program-locations
+     prg (Velocity Water Ground)
+
+     (lambda (out velocity water ground)
+       (with-program
+        prg
+        (with-output-to-canvas
+         out
+
+         (gl:uniform1i Water 1)
+         (gl:active-texture gl:+texture1+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex water))
+
+         (gl:uniform1i Velocity 0)
+         (gl:active-texture gl:+texture0+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
+
+         (render-square)))))))
+
+(define p/swe-dh
+  (let ()
+
+    (define prg (create-program #f "
+#version 300 es
+precision mediump float;
+
+out vec4 FragColor;
+
+uniform sampler2D Velocity;
+uniform sampler2D Water;
+uniform sampler2D Ground;
+
+void main() {
+    ivec2 T = ivec2(gl_FragCoord.xy);
+
+    // Find neighboring pressure:
+    vec2 vN = texelFetchOffset(Velocity, T, 0, ivec2(0, 1)).xy;
+    vec2 vS = texelFetchOffset(Velocity, T, 0, ivec2(0, -1)).xy;
+    vec2 vE = texelFetchOffset(Velocity, T, 0, ivec2(1, 0)).xy;
+    vec2 vW = texelFetchOffset(Velocity, T, 0, ivec2(-1, 0)).xy;
+    vec2 vC = texelFetch(Velocity, T, 0).xy;
+
+
+    float wN = texelFetchOffset(Water, T, 0, ivec2(0, 1)).x;
+    float wS = texelFetchOffset(Water, T, 0, ivec2(0, -1)).x;
+    float wE = texelFetchOffset(Water, T, 0, ivec2(1, 0)).x;
+    float wW = texelFetchOffset(Water, T, 0, ivec2(-1, 0)).x;
+    float wC = texelFetch(Water, T, 0).x;
+
+    float H = 10.0;
+    float dt = 0.02;
+    vec2 delta = vec2((vW.x * (H + wW)) - (vE.x * (H + wE)),
+                      (vN.y * (H + wN)) - (vS.y * (H + wS))) / 2.0;
+
+
+    FragColor = vec4(clamp(wC + dt * (delta.x - delta.y), -10.0, +10.0), 0.0, 0.0, 0.0);
+}
+"))
+
+    (let-program-locations
+     prg (Velocity Water Ground)
+
+     (lambda (out velocity water ground)
+       (with-program
+        prg
+        (with-output-to-canvas
+         out
+
+         (gl:uniform1i Ground 2)
+         (gl:active-texture gl:+texture2+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex ground))
+
+         (gl:uniform1i Water 1)
+         (gl:active-texture gl:+texture1+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex water))
+
+         (gl:uniform1i Velocity 0)
+         (gl:active-texture gl:+texture0+)
+         (gl:bind-texture   gl:+texture-2d+ (canvas-tex velocity))
+
+         (render-square)))))))
