@@ -46,8 +46,14 @@ RUN \
 RUN \
     echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter tools --no-ui --force -a && \
     echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter platform-tools --no-ui --force -a && \
-    echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter android-19 --no-ui --force -a && \
-    echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter build-tools-26.0.0-preview --no-ui --force -a
+    echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter android-19 --no-ui --force -a
+
+#RUN echo y | /usr/local/android-sdk-linux/tools/android update sdk --filter build-tools-26.0.0-preview --no-ui --force -a
+
+# it keeps asking to accept a license. I don't know how else to make it say "yes" for all of them.
+# does not work without sleep.
+RUN while true ; do echo y ; sleep 3 ; done | /usr/local/android-sdk-linux/tools/android update sdk --no-ui
+
 
 # Set PATH
 ENV ANDROID_HOME=/usr/local/android-sdk-linux \
